@@ -1,9 +1,12 @@
-import { useMemo, useState } from 'react'
-import { USERS_SEED } from '../../../../../data/mockData'
+import { useMemo, useState, useEffect } from 'react'
+import { fetchAdminUsers, updateAdminUser } from '../../../../../services/users.service'
+import { mapApiUserToDashboardUser, dashboardRoleToBackend, dashboardStatusToBackend } from '../../../../../lib/mappers'
+import { getErrorMessage } from '../../../../../lib/api'
 import type { User } from '../../../shared/types/dashboard.types'
 import Pagination from '../../../shared/components/Pagination'
 import UserViewModal from './UserViewModal'
 import UserEditModal from './UserEditModal'
+import UserCreateModal from './UserCreateModal'
 import '../../../shared/styles/dashboard-shared.css'
 import './UsersSection.css'
 
@@ -16,12 +19,44 @@ export default function UsersSection() {
   const [roleFilter, setRoleFilter]     = useState('All')
   const [statusFilter, setStatusFilter] = useState('All')
   const [page, setPage]                 = useState(1)
-  const [users, setUsers]               = useState<User[]>(USERS_SEED)
+  const [users, setUsers]               = useState<User[]>([])
+  const [loadError, setLoadError]       = useState<string | null>(null)
   const [viewUser, setViewUser]         = useState<User | null>(null)
   const [editUser, setEditUser]         = useState<User | null>(null)
+  const [showCreate, setShowCreate]     = useState(false)
+  const [saveError, setSaveError]       = useState<string | null>(null)
+  const [savingId, setSavingId]         = useState<string | null>(null)
 
-  const handleSave = (updated: User) =>
-    setUsers((prev) => prev.map((u) => u.id === updated.id ? updated : u))
+  useEffect(() => {
+    fetchAdminUsers()
+      .then((rows) => { setUsers(rows.map(mapApiUserToDashboardUser)); setLoadError(null) })
+      .catch((err) => { setUsers([]); setLoadError(err instanceof Error ? err.message : 'Failed to load users') })
+  }, [])
+
+  const handleSave = async (updated: User): Promise<boolean> => {
+    const parts = updated.name.trim().split(/\s+/)
+    const firstName = parts[0] || 'User'
+    const lastName = parts.slice(1).join(' ') || ''
+
+    setSavingId(updated.id)
+    setSaveError(null)
+    try {
+      const saved = await updateAdminUser(updated.id, {
+        firstName,
+        lastName,
+        phone: updated.phone === '—' ? '' : updated.phone,
+        role: dashboardRoleToBackend(updated.role),
+        status: dashboardStatusToBackend(updated.status),
+      })
+      setUsers((prev) => prev.map((u) => (u.id === updated.id ? mapApiUserToDashboardUser(saved) : u)))
+      return true
+    } catch (err) {
+      setSaveError(getErrorMessage(err))
+      return false
+    } finally {
+      setSavingId(null)
+    }
+  }
 
   const counts = useMemo(() => {
     const sevenDaysAgo = new Date(TODAY)
@@ -50,8 +85,24 @@ export default function UsersSection() {
   const paginated  = filtered.slice((safePage - 1) * PAGE_SIZE, safePage * PAGE_SIZE)
   const goTo = (p: number) => setPage(Math.max(1, Math.min(p, totalPages)))
 
-  const toggleStatus = (id: string) =>
-    setUsers((prev) => prev.map((u) => u.id === id ? { ...u, status: u.status === 'Active' ? 'Deactivated' : 'Active' } : u))
+  const toggleStatus = async (user: User) => {
+    const nextStatus = user.status === 'Active' ? 'Deactivated' : 'Active'
+    setSavingId(user.id)
+    setSaveError(null)
+    try {
+      const parts = user.name.trim().split(/\s+/)
+      const saved = await updateAdminUser(user.id, {
+        firstName: parts[0] || 'User',
+        lastName: parts.slice(1).join(' ') || '',
+        status: dashboardStatusToBackend(nextStatus),
+      })
+      setUsers((prev) => prev.map((u) => (u.id === user.id ? mapApiUserToDashboardUser(saved) : u)))
+    } catch (err) {
+      setSaveError(getErrorMessage(err))
+    } finally {
+      setSavingId(null)
+    }
+  }
 
   const kpis = [
     {
@@ -78,6 +129,8 @@ export default function UsersSection() {
 
   return (
     <div className="section-stack">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{loadError}</p>}
+      {saveError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{saveError}</p>}
       <section className="um-kpi-grid" aria-label="User metrics">
         {kpis.map((k) => (
           <article className="um-kpi-card" key={k.label}>
@@ -95,6 +148,9 @@ export default function UsersSection() {
 
       <article className="panel-card">
         <div className="um-toolbar">
+          <button type="button" className="um-btn-primary" onClick={() => setShowCreate(true)}>
+            + Register user
+          </button>
           <div className="search-field search-field--compact">
             <svg className="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/>
@@ -158,7 +214,8 @@ export default function UsersSection() {
                       <button
                         type="button"
                         className={`um-action-btn ${user.status === 'Active' ? 'um-action-deactivate' : 'um-action-activate'}`}
-                        onClick={() => toggleStatus(user.id)}
+                        onClick={() => void toggleStatus(user)}
+                        disabled={savingId === user.id}
                       >
                         {user.status === 'Active'
                           ? <><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg><span>Deactivate</span></>
@@ -187,7 +244,22 @@ export default function UsersSection() {
       </article>
 
       {viewUser && <UserViewModal user={viewUser} onClose={() => setViewUser(null)} />}
-      {editUser && <UserEditModal user={editUser} onClose={() => setEditUser(null)} onSave={handleSave} />}
+      {editUser && (
+        <UserEditModal
+          user={editUser}
+          onClose={() => setEditUser(null)}
+          onSave={async (updated) => {
+            if (await handleSave(updated)) setEditUser(null)
+          }}
+          isSaving={savingId === editUser.id}
+        />
+      )}
+      {showCreate && (
+        <UserCreateModal
+          onClose={() => setShowCreate(false)}
+          onCreated={(u) => setUsers((prev) => [u, ...prev])}
+        />
+      )}
     </div>
   )
 }

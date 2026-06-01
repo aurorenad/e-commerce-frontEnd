@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { Link, useNavigate } from 'react-router-dom'
 import {
   ShoppingBag, CreditCard, Heart, Shield,
@@ -10,47 +10,16 @@ import {
 import Navbar from '../shared/components/nav'
 import Footer from '../shared/components/Footer'
 import { useAuth } from '../context/AuthContext'
-import { baseListings } from '../data/listings'
+import { mapListingToCartDevice, mapApiListingToListing, mapApiOrderToCustomerOrder, mapFinancingToCustomerInstallment } from '../lib/mappers'
+import type { CustomerOrder, CustomerInstallment } from '../lib/mappers'
+import type { Listing } from '../features/marketplace/types'
 import { useCart } from '../context/useCart'
+import { fetchOrders, fetchWishlist, removeWishlistItem } from '../services/marketplace.service'
+import { fetchFinancingApplications } from '../services/payments.service'
+import { fetchProfile, updateProfile } from '../services/users.service'
+import { getErrorMessage } from '../lib/api'
 import { useSupport } from '../context/SupportContext'
 import type { SupportTicket, TicketStatus } from '../context/SupportContext'
-
-// ── Mock data ────────────────────────────────────────────────────────────────
-const MOCK_ORDERS = [
-  {
-    id: 'ORD-2841', device: 'iPhone 15 Pro', condition: 'Excellent' as const,
-    price: 840, date: 'May 15, 2025', status: 'Delivered',
-    img: 'https://images.unsplash.com/photo-1730036900477-09391e7a5414?q=80&w=580&auto=format&fit=crop',
-  },
-  {
-    id: 'ORD-2756', device: 'MacBook Air M2', condition: 'Good' as const,
-    price: 799, date: 'Apr 22, 2025', status: 'Shipped',
-    img: 'https://images.unsplash.com/photo-1650750018363-ff7ffe460f4b?q=80&w=709&auto=format&fit=crop',
-  },
-  {
-    id: 'ORD-2601', device: 'Samsung Galaxy S24 Ultra', condition: 'Excellent' as const,
-    price: 950, date: 'Mar 10, 2025', status: 'Processing',
-    img: 'https://images.unsplash.com/photo-1738830246146-599b67d009db?q=80&w=1032&auto=format&fit=crop',
-  },
-  {
-    id: 'ORD-2490', device: 'iPad Air 5th Gen', condition: 'Fair' as const,
-    price: 420, date: 'Feb 4, 2025', status: 'Delivered',
-    img: 'https://images.unsplash.com/photo-1703756847845-0fbe0be766ee?q=80&w=1032&auto=format&fit=crop',
-  },
-]
-
-const MOCK_INSTALLMENTS = [
-  {
-    ref: 'INS-7741', device: 'MacBook Air M2', monthly: 89.90,
-    paid: 3, total: 12, nextDue: 'Jun 1, 2025', status: 'Active',
-    img: 'https://images.unsplash.com/photo-1650750018363-ff7ffe460f4b?q=80&w=709&auto=format&fit=crop',
-  },
-  {
-    ref: 'INS-6820', device: 'iPhone 15 Pro', monthly: 70.00,
-    paid: 6, total: 12, nextDue: 'Jun 1, 2025', status: 'Active',
-    img: 'https://images.unsplash.com/photo-1730036900477-09391e7a5414?q=80&w=580&auto=format&fit=crop',
-  },
-]
 
 const MOCK_ACTIVITY = [
   { id: 1, icon: ShoppingBag, text: 'Order ORD-2841 delivered', time: '2 days ago', color: 'text-emerald-600' },
@@ -90,8 +59,6 @@ const TICKET_STATUS_STYLES: Record<TicketStatus, { label: string; cls: string }>
   closed:      { label: 'Closed',      cls: 'bg-gray-100 text-gray-500'   },
 }
 
-const SAVED_IDS = [1, 3, 5, 6]
-
 export default function CustomerProfile() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
@@ -105,8 +72,12 @@ export default function CustomerProfile() {
   const [draftName, setDraftName]         = useState(name)
   const [draftPhone, setDraftPhone]       = useState(phone)
   const [orderFilter, setOrderFilter]     = useState('All')
-  const [savedIds, setSavedIds]           = useState<number[]>(SAVED_IDS)
-  const [addedId, setAddedId]             = useState<number | null>(null)
+  const [orders, setOrders]               = useState<CustomerOrder[]>([])
+  const [installments, setInstallments]   = useState<CustomerInstallment[]>([])
+  const [wishlistListings, setWishlistListings] = useState<Listing[]>([])
+  const [dataLoading, setDataLoading]     = useState(true)
+  const [dataError, setDataError]         = useState<string | null>(null)
+  const [addedId, setAddedId]             = useState<string | null>(null)
   const [notifications, setNotifications] = useState({ orders: true, installments: true, promotions: false })
   const [pwForm, setPwForm]               = useState({ current: '', next: '', confirm: '' })
   const [pwSaved, setPwSaved]             = useState(false)
@@ -129,16 +100,80 @@ export default function CustomerProfile() {
     ? name.split(' ').map((p) => p[0]).join('').slice(0, 2).toUpperCase()
     : '?'
 
-  const savedDevices = baseListings.filter((l) => savedIds.includes(l.id))
   const filteredOrders = orderFilter === 'All'
-    ? MOCK_ORDERS
-    : MOCK_ORDERS.filter((o) => o.status === orderFilter)
+    ? orders
+    : orders.filter((o) => o.status === orderFilter)
 
-  const totalMonthly = MOCK_INSTALLMENTS.reduce((s, i) => s + i.monthly, 0)
+  const totalMonthly = installments.reduce((s, i) => s + i.monthly, 0)
 
-  function saveProfile() {
-    setName(draftName)
-    setPhone(draftPhone)
+  useEffect(() => {
+    if (!user) return
+    let cancelled = false
+
+    async function load() {
+      setDataLoading(true)
+      setDataError(null)
+      try {
+        const [profile, orderRows, financingRows, wishlistRows] = await Promise.all([
+          fetchProfile(),
+          fetchOrders(),
+          fetchFinancingApplications(),
+          fetchWishlist(),
+        ])
+
+        if (cancelled) return
+
+        setName(`${profile.firstName} ${profile.lastName}`.trim())
+        setDraftName(`${profile.firstName} ${profile.lastName}`.trim())
+        if (profile.phone) {
+          setPhone(profile.phone)
+          setDraftPhone(profile.phone)
+        }
+
+        setOrders(orderRows.map(mapApiOrderToCustomerOrder))
+        setInstallments(
+          financingRows
+            .filter((f) => f.status === 'APPROVED' || f.status === 'PENDING')
+            .map(mapFinancingToCustomerInstallment),
+        )
+        setWishlistListings(
+          wishlistRows.map((w) =>
+            mapApiListingToListing({
+              id: w.deviceId,
+              deviceId: w.deviceId,
+              title: `${w.device.brand} ${w.device.model}`,
+              description: 'Saved device',
+              price: w.device.price,
+              device: w.device,
+            }),
+          ),
+        )
+      } catch (err) {
+        if (!cancelled) setDataError(getErrorMessage(err))
+      } finally {
+        if (!cancelled) setDataLoading(false)
+      }
+    }
+
+    void load()
+    return () => { cancelled = true }
+  }, [user])
+
+  async function saveProfile() {
+    const parts = draftName.trim().split(/\s+/)
+    const firstName = parts[0] || 'User'
+    const lastName = parts.slice(1).join(' ') || ''
+    try {
+      const updated = await updateProfile({ firstName, lastName, phone: draftPhone })
+      const fullName = `${updated.firstName} ${updated.lastName}`.trim()
+      setName(fullName)
+      setPhone(updated.phone || draftPhone)
+      setDraftName(fullName)
+      setDraftPhone(updated.phone || draftPhone)
+    } catch {
+      setName(draftName)
+      setPhone(draftPhone)
+    }
     setEditing(false)
   }
 
@@ -148,12 +183,8 @@ export default function CustomerProfile() {
     setEditing(false)
   }
 
-  function removeFromSaved(id: number) {
-    setSavedIds((prev) => prev.filter((i) => i !== id))
-  }
-
-  function handleAddToCart(listing: typeof baseListings[0]) {
-    addToCart(listing)
+  function handleAddToCart(listing: Listing) {
+    void addToCart(mapListingToCartDevice(listing))
     setAddedId(listing.id)
     setTimeout(() => setAddedId(null), 2000)
   }
@@ -221,6 +252,18 @@ export default function CustomerProfile() {
       <Navbar />
       <div className='bg-[#EEF2F7] min-h-screen'>
         <main className='max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8 space-y-5'>
+
+          {dataError && (
+            <div className='p-4 bg-red-50 border border-red-200 rounded-2xl text-sm text-red-700'>
+              Could not load profile data: {dataError}. Make sure the backend is running and you are signed in.
+            </div>
+          )}
+
+          {dataLoading && (
+            <div className='p-4 bg-white border border-gray-100 rounded-2xl text-sm text-gray-500 text-center'>
+              Loading your account from the server…
+            </div>
+          )}
 
           {/* ── Profile header card ───────────────────────────────────── */}
           <div className='bg-white border border-gray-100 rounded-3xl shadow-md overflow-hidden'>
@@ -370,10 +413,10 @@ export default function CustomerProfile() {
               {/* KPI cards */}
               <div className='grid grid-cols-2 sm:grid-cols-4 gap-4'>
                 {[
-                  { label: 'Total Orders',    value: MOCK_ORDERS.length,             icon: ShoppingBag, accent: '#3b82f6', bg: '#eff6ff' },
-                  { label: 'Active Plans',    value: MOCK_INSTALLMENTS.length,       icon: CreditCard,  accent: '#127058', bg: '#f0fdf4' },
+                  { label: 'Total Orders',    value: orders.length,             icon: ShoppingBag, accent: '#3b82f6', bg: '#eff6ff' },
+                  { label: 'Active Plans',    value: installments.length,       icon: CreditCard,  accent: '#127058', bg: '#f0fdf4' },
                   { label: 'Monthly Payment', value: `$${totalMonthly.toFixed(0)}`,  icon: TrendingUp,  accent: '#f59e0b', bg: '#fffbeb' },
-                  { label: 'Saved Devices',   value: savedIds.length,                icon: Heart,       accent: '#ef4444', bg: '#fef2f2' },
+                  { label: 'Saved Devices',   value: wishlistListings.length,      icon: Heart,       accent: '#ef4444', bg: '#fef2f2' },
                 ].map(({ label, value, icon: Icon, accent, bg }) => (
                   <div key={label} className='bg-white border border-gray-100 rounded-2xl p-5 shadow-sm hover:shadow-md hover:-translate-y-0.5 transition-all duration-200 group cursor-default'>
                     <div className='flex items-start justify-between mb-4'>
@@ -397,7 +440,7 @@ export default function CustomerProfile() {
                     </button>
                   </div>
                   <div className='space-y-3'>
-                    {MOCK_ORDERS.slice(0, 2).map((o) => (
+                    {orders.slice(0, 2).map((o) => (
                       <div key={o.id} className='flex items-center gap-3 p-2.5 rounded-xl hover:bg-gray-50 transition-colors'>
                         <img src={o.img} alt={o.device} className='w-11 h-11 rounded-xl object-cover bg-gray-100 flex-shrink-0' />
                         <div className='flex-1 min-w-0'>
@@ -419,7 +462,7 @@ export default function CustomerProfile() {
                     </button>
                   </div>
                   <div className='space-y-4'>
-                    {MOCK_INSTALLMENTS.map((ins) => {
+                    {installments.map((ins) => {
                       const pct = Math.round((ins.paid / ins.total) * 100)
                       return (
                         <div key={ins.ref}>
@@ -482,7 +525,7 @@ export default function CustomerProfile() {
                     }`}
                   >
                     {f}
-                    {f === 'All' && <span className='ml-1 opacity-60'>({MOCK_ORDERS.length})</span>}
+                    {f === 'All' && <span className='ml-1 opacity-60'>({orders.length})</span>}
                   </button>
                 ))}
               </div>
@@ -543,7 +586,7 @@ export default function CustomerProfile() {
                 <div className='w-px bg-white/10 self-stretch' />
                 <div>
                   <p className='text-[10px] font-bold text-white/60 uppercase tracking-widest'>Active plans</p>
-                  <p className='text-2xl font-black text-white mt-0.5'>{MOCK_INSTALLMENTS.length}</p>
+                  <p className='text-2xl font-black text-white mt-0.5'>{installments.length}</p>
                 </div>
                 <div className='w-px bg-white/10 self-stretch' />
                 <div>
@@ -552,7 +595,7 @@ export default function CustomerProfile() {
                 </div>
               </div>
 
-              {MOCK_INSTALLMENTS.map((ins) => {
+              {installments.map((ins) => {
                 const pct = Math.round((ins.paid / ins.total) * 100)
                 const remaining = ins.total - ins.paid
                 return (
@@ -617,7 +660,7 @@ export default function CustomerProfile() {
           {/* SAVED DEVICES ──────────────────────────────────────────────── */}
           {activeTab === 'saved' && (
             <div className='space-y-4'>
-              {savedDevices.length === 0 ? (
+              {wishlistListings.length === 0 ? (
                 <div className='bg-white border border-gray-100 rounded-2xl shadow-sm p-12 text-center'>
                   <Heart size={36} className='mx-auto text-gray-300 mb-3' />
                   <p className='text-sm font-semibold text-gray-500'>No saved devices yet</p>
@@ -627,7 +670,7 @@ export default function CustomerProfile() {
                 </div>
               ) : (
                 <div className='grid sm:grid-cols-2 gap-4'>
-                  {savedDevices.map((device) => {
+                  {wishlistListings.map((device) => {
                     const discount = Math.round(((device.original_price - device.current_price) / device.original_price) * 100)
                     const isAdded = addedId === device.id
                     return (
@@ -646,7 +689,9 @@ export default function CustomerProfile() {
                           </div>
                           <button
                             type='button'
-                            onClick={() => removeFromSaved(device.id)}
+                            onClick={() => void removeWishlistItem(device.deviceId).then(() =>
+                              setWishlistListings((prev) => prev.filter((d) => d.deviceId !== device.deviceId)),
+                            )}
                             className='absolute top-3 right-3 w-8 h-8 rounded-full bg-white/90 backdrop-blur-sm flex items-center justify-center text-red-500 hover:bg-red-500 hover:text-white transition-all shadow-sm'
                             aria-label='Remove from saved'
                           >
@@ -670,7 +715,7 @@ export default function CustomerProfile() {
                             </div>
                             <div className='flex gap-2'>
                               <Link
-                                to={`/marketplace/${device.id}`}
+                                to={`/marketplace/${device.deviceId}`}
                                 className='p-2 rounded-xl border border-gray-200 text-gray-600 hover:border-[#127058]/40 hover:text-[#127058] transition-all'
                                 aria-label='View details'
                               >

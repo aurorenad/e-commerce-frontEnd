@@ -1,8 +1,10 @@
-import { useMemo, useState } from 'react'
-import { DEVICES_SEED } from '../../../../../data/mockData'
+import { useMemo, useState, useEffect } from 'react'
+import { fetchDevices } from '../../../../../services/devices.service'
+import { mapApiDeviceToInventory } from '../../../../../lib/mappers'
 import type { Device } from '../../../shared/types/dashboard.types'
 import Pagination from '../../../shared/components/Pagination'
 import { DeviceViewModal, DeviceEditModal, AdjustStockModal } from './DeviceModals'
+import DeviceIntakeModal from './DeviceIntakeModal'
 import { getStockStatus, INV_CATEGORIES, INV_WAREHOUSES, PAGE_SIZE } from './inventoryHelpers'
 import '../../../shared/styles/dashboard-shared.css'
 import './InventorySection.css'
@@ -15,10 +17,18 @@ export default function InventorySection() {
   const [sortKey, setSortKey]     = useState<'model' | 'stock'>('model')
   const [sortDir, setSortDir]     = useState<'asc' | 'desc'>('asc')
   const [page, setPage]           = useState(1)
-  const [devices, setDevices]     = useState<Device[]>(DEVICES_SEED)
+  const [devices, setDevices]     = useState<Device[]>([])
+  const [loadError, setLoadError]   = useState<string | null>(null)
   const [viewDev, setViewDev]     = useState<Device | null>(null)
+
+  useEffect(() => {
+    fetchDevices()
+      .then((rows) => { setDevices(rows.map(mapApiDeviceToInventory)); setLoadError(null) })
+      .catch((err) => { setDevices([]); setLoadError(err instanceof Error ? err.message : 'Failed to load inventory') })
+  }, [])
   const [editDev, setEditDev]     = useState<Device | null>(null)
   const [adjDev, setAdjDev]       = useState<Device | null>(null)
+  const [showIntake, setShowIntake] = useState(false)
 
   const handleSave = (updated: Device) =>
     setDevices((prev) => prev.map((d) => d.sku === updated.sku ? updated : d))
@@ -76,6 +86,7 @@ export default function InventorySection() {
 
   return (
     <div className="section-stack">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{loadError}</p>}
       <section className="um-kpi-grid" aria-label="Inventory metrics">
         {kpis.map((k) => (
           <article className="um-kpi-card" key={k.label}>
@@ -93,6 +104,9 @@ export default function InventorySection() {
 
       <article className="panel-card">
         <div className="um-toolbar">
+          <button type="button" className="um-btn-primary" onClick={() => setShowIntake(true)}>
+            + Register device
+          </button>
           <div className="search-field search-field--compact">
             <svg className="icon-svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
               <circle cx="11" cy="11" r="7"/><path d="M20 20l-3-3"/>
@@ -180,6 +194,12 @@ export default function InventorySection() {
       {viewDev && <DeviceViewModal device={viewDev} onClose={() => setViewDev(null)} />}
       {editDev && <DeviceEditModal device={editDev} onClose={() => setEditDev(null)} onSave={handleSave} />}
       {adjDev  && <AdjustStockModal device={adjDev} onClose={() => setAdjDev(null)} onSave={handleSave} />}
+      {showIntake && (
+        <DeviceIntakeModal
+          onClose={() => setShowIntake(false)}
+          onCreated={(d) => setDevices((prev) => [d, ...prev])}
+        />
+      )}
     </div>
   )
 }

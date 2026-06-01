@@ -1,4 +1,5 @@
 export interface FoRequest {
+  id: string
   ref: string; customer: string; device: string; price: string
   term: string; apr: string; status: string; appliedAt: string
 }

@@ -15,7 +15,8 @@ export interface Spec {
 }
 
 export interface Listing {
-  id: number;
+  id: string;
+  deviceId: string;
   title: string;
   current_price: number;
   original_price: number;

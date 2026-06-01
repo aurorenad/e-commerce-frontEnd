@@ -2,7 +2,8 @@ import type { Listing } from '../features/marketplace/types';
 
 export const baseListings: Listing[] = [
   {
-    id: 1,
+    id: '1',
+    deviceId: 'mock-1',
     title: 'iPhone 15 Pro',
     current_price: 840,
     original_price: 999,
@@ -21,7 +22,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 2,
+    id: '2',
+    deviceId: 'mock-2',
     title: 'Samsung Galaxy S24 Ultra',
     current_price: 950,
     original_price: 1299,
@@ -40,7 +42,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 3,
+    id: '3',
+    deviceId: 'mock-3',
     title: 'MacBook Air M2 (13-inch)',
     current_price: 799,
     original_price: 1099,
@@ -59,7 +62,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 4,
+    id: '4',
+    deviceId: 'mock-4',
     title: 'iPad Air 5th Gen (Wi-Fi)',
     current_price: 420,
     original_price: 599,
@@ -78,7 +82,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 5,
+    id: '5',
+    deviceId: 'mock-5',
     title: 'Google Pixel 8 Pro',
     current_price: 610,
     original_price: 999,
@@ -97,7 +102,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 6,
+    id: '6',
+    deviceId: 'mock-6',
     title: 'Apple Watch Series 6',
     current_price: 290,
     original_price: 399,
@@ -116,7 +122,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 7,
+    id: '7',
+    deviceId: 'mock-7',
     title: 'Sony Alpha 6700',
     current_price: 245,
     original_price: 349,
@@ -135,7 +142,8 @@ export const baseListings: Listing[] = [
     ],
   },
   {
-    id: 8,
+    id: '8',
+    deviceId: 'mock-8',
     title: 'Nintendo Switch OLED',
     current_price: 260,
     original_price: 349,

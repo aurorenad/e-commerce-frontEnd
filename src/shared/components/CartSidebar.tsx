@@ -110,7 +110,7 @@ export default function CartSidebar() {
                 </div>
 
                 <button
-                  onClick={() => removeFromCart(item.id)}
+                  onClick={() => removeFromCart(item.deviceId)}
                   className='absolute right-3 top-3 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-colors opacity-0 group-hover:opacity-100 transition-opacity duration-200'
                   aria-label='Delete item'
                 >

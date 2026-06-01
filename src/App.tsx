@@ -3,6 +3,7 @@ import { CartProvider } from './context/CartContext';
 import { AuthProvider } from './context/AuthContext';
 import { SupportProvider } from './context/SupportContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import ApiStatusBanner from './components/ApiStatusBanner';
 
 import HeroSection from './features/marketplace/HeroSection';
 import LoginForm from './features/auth/components/login-form';
@@ -27,6 +28,7 @@ function App() {
     <AuthProvider>
       <SupportProvider>
       <CartProvider>
+        <ApiStatusBanner />
         <ToastNotification />
         <Routes>
           {/* Public routes */}

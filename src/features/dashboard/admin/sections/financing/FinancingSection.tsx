@@ -1,5 +1,6 @@
-import { useMemo, useState } from 'react'
-import { FINANCING_SEED } from '../../../../../data/mockData'
+import { useMemo, useState, useEffect } from 'react'
+import { fetchFinancingApplications } from '../../../../../services/payments.service'
+import { mapFinancingToLoan } from '../../../../../lib/mappers'
 import type { Loan } from '../../../shared/types/dashboard.types'
 import MiniKpiCard from '../../../shared/components/MiniKpiCard'
 import LoanViewModal from './LoanViewModal'
@@ -11,8 +12,15 @@ export default function FinancingSection() {
   const [search, setSearch]             = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [termFilter, setTermFilter]     = useState('all')
-  const [loans]                          = useState<Loan[]>(FINANCING_SEED)
+  const [loans, setLoans]               = useState<Loan[]>([])
+  const [loadError, setLoadError]       = useState<string | null>(null)
   const [viewLoan, setViewLoan]         = useState<Loan | null>(null)
+
+  useEffect(() => {
+    fetchFinancingApplications()
+      .then((apps) => { setLoans(apps.map(mapFinancingToLoan)); setLoadError(null) })
+      .catch((err) => { setLoans([]); setLoadError(err instanceof Error ? err.message : 'Failed to load financing') })
+  }, [])
   const [sortKey, setSortKey]           = useState<string | null>(null)
   const [sortDir, setSortDir]           = useState<'asc' | 'desc'>('asc')
 
@@ -84,6 +92,7 @@ export default function FinancingSection() {
 
   return (
     <div className="section-stack">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3">{loadError}</p>}
       <section className="mini-kpi-grid">
         <MiniKpiCard label="Active Loans"      value={kpis.activeCount}                        hint={`$${kpis.outstanding.toLocaleString()} outstanding`} />
         <MiniKpiCard label="Delinquent"        value={kpis.delinquentCount}                    hint={`${kpis.delinquentCount} accounts at risk`} />

@@ -1,23 +1,7 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Mail, Lock, Eye, EyeOff, ArrowRight, ChevronDown, ChevronUp } from 'lucide-react'
-import { useAuth, MOCK_USERS } from '../../../context/AuthContext'
-
-const ROLE_LABELS: Record<string, string> = {
-  customer:   'Customer',
-  admin:      'Admin',
-  finance:    'Finance Officer',
-  technician: 'Technician',
-  agent:      'Support Agent',
-}
-
-const ROLE_COLORS: Record<string, string> = {
-  customer:   'bg-blue-100 text-blue-700',
-  admin:      'bg-purple-100 text-purple-700',
-  finance:    'bg-amber-100 text-amber-700',
-  technician: 'bg-green-100 text-green-700',
-  agent:      'bg-teal-100 text-teal-700',
-}
+import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
+import { useAuth } from '../../../context/AuthContext'
 
 export default function LoginForm() {
   const { login } = useAuth()
@@ -28,7 +12,6 @@ export default function LoginForm() {
   const [showPassword, setShowPassword] = useState(false)
   const [isLoading, setIsLoading]       = useState(false)
   const [error, setError]               = useState<string | null>(null)
-  const [hintsOpen, setHintsOpen]       = useState(false)
 
   const handleSubmit = async (e: { preventDefault(): void }) => {
     e.preventDefault()
@@ -45,48 +28,9 @@ export default function LoginForm() {
     }
   }
 
-  function fillCredentials(userEmail: string, userPassword: string) {
-    setEmail(userEmail)
-    setPassword(userPassword)
-    setError(null)
-  }
-
   return (
     <div className="min-h-screen bg-[#FAFAFB] flex items-center justify-center p-4">
-      <div className="w-full max-w-md space-y-4">
-
-        {/* ── Demo credentials hint panel ─────────────────────────────── */}
-        <div className="bg-white border border-dashed border-[#127058]/40 rounded-2xl overflow-hidden">
-          <button
-            type="button"
-            onClick={() => setHintsOpen((v) => !v)}
-            className="w-full flex items-center justify-between px-4 py-3 text-sm font-semibold text-[#127058] hover:bg-[#127058]/5 transition-colors"
-          >
-            <span>Test credentials — click a role to fill the form</span>
-            {hintsOpen ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
-          </button>
-
-          {hintsOpen && (
-            <div className="px-4 pb-4 grid grid-cols-2 gap-2">
-              {MOCK_USERS.map((u) => (
-                <button
-                  key={u.id}
-                  type="button"
-                  onClick={() => fillCredentials(u.email, u.password)}
-                  className="text-left p-3 rounded-xl border border-gray-100 hover:border-[#127058]/30 hover:bg-[#127058]/5 transition-all group"
-                >
-                  <span className={`inline-block text-[10px] font-bold px-2 py-0.5 rounded-full mb-1.5 ${ROLE_COLORS[u.role]}`}>
-                    {ROLE_LABELS[u.role]}
-                  </span>
-                  <p className="text-xs font-medium text-gray-800 truncate">{u.email}</p>
-                  <p className="text-xs text-gray-400">{u.password}</p>
-                </button>
-              ))}
-            </div>
-          )}
-        </div>
-
-        {/* ── Login card ──────────────────────────────────────────────── */}
+      <div className="w-full max-w-md">
         <div className="bg-white border border-gray-200 rounded-2xl shadow-xl p-8 space-y-6">
 
           <div className="text-center space-y-1">
@@ -102,7 +46,6 @@ export default function LoginForm() {
 
           <form onSubmit={handleSubmit} className="space-y-4">
 
-            {/* Email */}
             <div className="space-y-1.5">
               <label className="text-sm font-semibold text-gray-700 block">Email address</label>
               <div className="relative flex items-center">
@@ -119,7 +62,6 @@ export default function LoginForm() {
               </div>
             </div>
 
-            {/* Password */}
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-gray-700">Password</label>
@@ -149,7 +91,6 @@ export default function LoginForm() {
               </div>
             </div>
 
-            {/* Submit */}
             <button
               type="submit"
               disabled={isLoading}
@@ -179,7 +120,6 @@ export default function LoginForm() {
             </a>
           </p>
         </div>
-
       </div>
     </div>
   )

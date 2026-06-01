@@ -1,5 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
-import { baseListings } from '../../data/listings';
+import { useSearchParams } from 'react-router-dom';
+import { useListings } from '../../hooks/useListings';
+import type { Listing } from './types';
 import {
   Search,
   SlidersHorizontal,
@@ -175,7 +177,7 @@ function Sidebar({
 }
 
 // ─── Device Card (Grid) ───────────────────────────────────────────────────────
-function DeviceCard({ device }: { device: (typeof baseListings)[0] }) {
+function DeviceCard({ device }: { device: Listing }) {
   const monthlyPrice = Math.ceil(device.current_price / 12);
   const discountPct  = Math.round(
     ((device.original_price - device.current_price) / device.original_price) * 100,
@@ -183,7 +185,7 @@ function DeviceCard({ device }: { device: (typeof baseListings)[0] }) {
 
   return (
     <div className='group border border-gray-200 rounded-2xl overflow-hidden hover:shadow-lg hover:border-[#127058]/30 transition-all duration-300 bg-white flex flex-col'>
-      <div className='relative h-48 w-full bg-gray-50 overflow-hidden'>
+      <Link to={`/marketplace/${device.id}`} className='relative h-48 w-full bg-gray-50 overflow-hidden block'>
         <img
           src={device.img} alt={device.title}
           className='object-cover w-full h-full group-hover:scale-105 transition-transform duration-500'
@@ -201,10 +203,12 @@ function DeviceCard({ device }: { device: (typeof baseListings)[0] }) {
             {device.condition}
           </span>
         )}
-      </div>
+      </Link>
 
       <div className='p-4 flex flex-col flex-grow'>
-        <h4 className='font-bold text-gray-800 text-base line-clamp-1 mb-1'>{device.title}</h4>
+        <Link to={`/marketplace/${device.id}`} className='font-bold text-gray-800 text-base line-clamp-1 mb-1 hover:text-[#127058] transition-colors block'>
+          {device.title}
+        </Link>
 
         <div className='flex items-center gap-1 mb-3'>
           {[1, 2, 3, 4, 5].map((s) => (
@@ -235,7 +239,7 @@ function DeviceCard({ device }: { device: (typeof baseListings)[0] }) {
 }
 
 // ─── Device Row (List View) ───────────────────────────────────────────────────
-function DeviceRow({ device }: { device: (typeof baseListings)[0] }) {
+function DeviceRow({ device }: { device: Listing }) {
   const monthlyPrice = Math.ceil(device.current_price / 12);
   const discountPct  = Math.round(
     ((device.original_price - device.current_price) / device.original_price) * 100,
@@ -243,18 +247,20 @@ function DeviceRow({ device }: { device: (typeof baseListings)[0] }) {
 
   return (
     <div className='group flex gap-4 border border-gray-200 rounded-2xl overflow-hidden hover:shadow-md hover:border-[#127058]/30 transition-all duration-300 bg-white p-4'>
-      <div className='relative w-28 h-28 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden'>
+      <Link to={`/marketplace/${device.id}`} className='relative w-28 h-28 flex-shrink-0 bg-gray-50 rounded-xl overflow-hidden block'>
         <img src={device.img} alt={device.title} className='object-cover w-full h-full group-hover:scale-105 transition-transform duration-500' />
         {discountPct > 0 && (
           <span className='absolute top-1.5 right-1.5 bg-red-500 text-white text-[10px] font-bold px-1.5 py-0.5 rounded-full'>-{discountPct}%</span>
         )}
-      </div>
+      </Link>
 
       <div className='flex flex-col flex-grow min-w-0'>
         <div className='flex items-start justify-between gap-2'>
           <div>
             <span className='text-xs font-bold text-[#ef9f27] capitalize'>{device.category}</span>
-            <h4 className='font-bold text-gray-800 text-base line-clamp-1'>{device.title}</h4>
+            <Link to={`/marketplace/${device.id}`} className='font-bold text-gray-800 text-base line-clamp-1 hover:text-[#127058] transition-colors block'>
+              {device.title}
+            </Link>
           </div>
           {device.condition && (
             <span className={`flex-shrink-0 text-xs font-semibold px-2 py-0.5 rounded-full ${conditionBadge(device.condition)}`}>
@@ -337,8 +343,10 @@ function FilterToggleButton({
 
 // ─── Marketplace ──────────────────────────────────────────────────────────────
 export default function Marketplace() {
-  const [isLoading, setIsLoading]           = useState(true);
-  const [searchQuery, setSearchQuery]       = useState('');
+  const [searchParams] = useSearchParams();
+  const initialSearch = searchParams.get('search') ?? '';
+  const { listings, loading: isLoading, error: loadError, reload } = useListings(initialSearch || undefined);
+  const [searchQuery, setSearchQuery]       = useState(initialSearch);
   const [selectedCategory, setSelectedCategory] = useState('All');
   const [pricePresetIndex, setPricePresetIndex] = useState(0);
   const [sortBy, setSortBy]                 = useState<SortOption>('default');
@@ -346,12 +354,6 @@ export default function Marketplace() {
   const [sidebarOpen, setSidebarOpen]       = useState(false);
   const [sortDropdownOpen, setSortDropdownOpen] = useState(false);
   const sortRef = useRef<HTMLDivElement>(null);
-
-  // Loading sim
-  useEffect(() => {
-    const t = setTimeout(() => setIsLoading(false), 1500);
-    return () => clearTimeout(t);
-  }, []);
 
   // Close sort dropdown on outside click
   useEffect(() => {
@@ -365,8 +367,8 @@ export default function Marketplace() {
   }, []);
 
   const categories = useMemo(
-    () => ['All', ...new Set(baseListings.map((d) => d.category))],
-    [],
+    () => ['All', ...new Set(listings.map((d) => d.category))],
+    [listings],
   );
 
   const activeFilterCount = useMemo(() => {
@@ -378,7 +380,7 @@ export default function Marketplace() {
 
   const filteredListings = useMemo(() => {
     const { min, max } = PRICE_PRESETS[pricePresetIndex];
-    let results = baseListings.filter((d) => {
+    let results = listings.filter((d) => {
       const matchSearch   = d.title.toLowerCase().includes(searchQuery.toLowerCase()) || d.category.toLowerCase().includes(searchQuery.toLowerCase());
       const matchCategory = selectedCategory === 'All' || d.category === selectedCategory;
       const matchPrice    = d.current_price >= min && d.current_price <= max;
@@ -388,7 +390,7 @@ export default function Marketplace() {
     if (sortBy === 'price-desc') results = [...results].sort((a, b) => b.current_price - a.current_price);
     if (sortBy === 'name-asc')   results = [...results].sort((a, b) => a.title.localeCompare(b.title));
     return results;
-  }, [searchQuery, selectedCategory, pricePresetIndex, sortBy]);
+  }, [searchQuery, selectedCategory, pricePresetIndex, sortBy, listings]);
 
   function handleReset() {
     setSearchQuery('');
@@ -397,11 +399,34 @@ export default function Marketplace() {
     setSortBy('default');
   }
 
-  if (isLoading) return <LoadingSpinner message='Fetching the best device deals...' />;
+  if (isLoading) return <LoadingSpinner message='Loading devices from database...' />;
+
+  if (!loadError && listings.length === 0) {
+    return (
+      <>
+        <Navbar />
+        <div className='max-w-7xl mx-auto px-4 py-24 text-center'>
+          <p className='text-gray-600 font-medium'>No devices listed yet. Run <code className='text-[#127058]'>npm run seed</code> in the backend.</p>
+        </div>
+        <Footer />
+      </>
+    );
+  }
 
   return (
     <>
       <Navbar />
+
+      {loadError && (
+        <div className='max-w-7xl mx-auto px-4 pt-4'>
+          <div className='text-sm text-red-800 bg-red-50 border border-red-200 rounded-xl px-4 py-3 flex flex-wrap items-center justify-between gap-3'>
+            <span>Could not load devices from the API: {loadError}</span>
+            <button type='button' onClick={() => void reload()} className='font-semibold text-[#127058] hover:underline'>
+              Retry
+            </button>
+          </div>
+        </div>
+      )}
 
       {/* ── Filter Toggle Button — always visible on left edge ────────────── */}
       <FilterToggleButton

@@ -1,4 +1,6 @@
+import { useEffect, useState } from 'react'
 import { OVERVIEW_PIE_DATA, OVERVIEW_REVENUE_TREND, OVERVIEW_STATS, OVERVIEW_ORDERS_TREND } from '../../../../../data/mockData'
+import { fetchDashboardStats } from '../../../../../services/admin.service'
 import DonutChart from '../../../shared/components/DonutChart'
 import RevenueBarChart from './RevenueBarChart'
 import OrdersLineChart from './OrdersLineChart'
@@ -7,13 +9,35 @@ import type { StatIconType } from './StatIcon'
 import './OverviewSection.css'
 
 export default function OverviewSection() {
-  const total = OVERVIEW_PIE_DATA.reduce((s, d) => s + d.value, 0)
+  const [stats, setStats] = useState(OVERVIEW_STATS)
+  const [pieData, setPieData] = useState(OVERVIEW_PIE_DATA)
+
+  useEffect(() => {
+    fetchDashboardStats()
+      .then((data) => {
+        setStats([
+          { label: 'Total Revenue', value: `$${data.sales.totalRevenue.toLocaleString()}`, change: `${data.sales.totalOrdersPaid} orders`, trend: 'up' as const, icon: 'revenue' },
+          { label: 'Ready for Sale', value: String(data.inventory.readyForSaleCount), change: `${data.inventory.soldCount} sold`, trend: 'up' as const, icon: 'devices' },
+          { label: 'In Repair', value: String(data.inventory.repairingCount), change: `${data.inventory.intakeCount} intake`, trend: 'down' as const, icon: 'repair' },
+          { label: 'Financing Pending', value: String(data.financing.pendingApplications), change: `${data.financing.overduePayments} overdue`, trend: 'down' as const, icon: 'finance' },
+        ])
+        setPieData([
+          { label: 'Ready', value: data.inventory.readyForSaleCount, color: '#127058' },
+          { label: 'Repairing', value: data.inventory.repairingCount, color: '#ef9f27' },
+          { label: 'Intake', value: data.inventory.intakeCount, color: '#3b82f6' },
+          { label: 'Sold', value: data.inventory.soldCount, color: '#94a3b8' },
+        ])
+      })
+      .catch(() => {})
+  }, [])
+
+  const total = pieData.reduce((s, d) => s + d.value, 0)
   const currentOrders = OVERVIEW_ORDERS_TREND[OVERVIEW_ORDERS_TREND.length - 1].orders
 
   return (
     <div className="overview-stack">
       <section className="ov-kpi-grid" aria-label="Key metrics">
-        {OVERVIEW_STATS.map((stat) => (
+        {stats.map((stat) => (
           <article className="ov-kpi-card" key={stat.label}>
             <div className="ov-kpi-top">
               <StatIcon type={stat.icon as StatIconType} />
@@ -32,13 +56,13 @@ export default function OverviewSection() {
           <h3 className="ov-chart-title">Distribution Overview</h3>
           <div className="ov-donut-wrap">
             <DonutChart
-              data={OVERVIEW_PIE_DATA}
+              data={pieData}
               size={160}
               centerLabel={total.toLocaleString()}
               centerSub="Total"
             />
             <ul className="ov-donut-legend">
-              {OVERVIEW_PIE_DATA.map((d) => (
+              {pieData.map((d) => (
                 <li key={d.label} className="ov-legend-item">
                   <span className="ov-legend-dot" style={{ background: d.color }} />
                   <span className="ov-legend-label">{d.label}</span>

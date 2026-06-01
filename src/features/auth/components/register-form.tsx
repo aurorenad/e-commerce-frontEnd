@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   User,
   Mail,
@@ -10,9 +11,11 @@ import {
   Phone,
   CircleCheckBig,
 } from 'lucide-react';
+import * as authService from '../../../services/auth.service';
+import { getErrorMessage } from '../../../lib/api';
 
 export default function RegisterForm() {
-  // Input fields state
+  const navigate = useNavigate();
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
@@ -44,22 +47,26 @@ export default function RegisterForm() {
     setIsLoading(true);
 
     try {
-      // Mock API call payload
-      const payload = {
-        name: fullName,
-        email: email,
-        phone: phone,
-        password: password,
-      };
+      const parts = fullName.trim().split(/\s+/);
+      const firstName = parts[0] || 'User';
+      const lastName = parts.slice(1).join(' ') || 'Account';
 
-      console.log('Sending registration payload:', payload);
+      const result = await authService.register({
+        firstName,
+        lastName,
+        email: email.trim(),
+        phone: phone.trim() || undefined,
+        password,
+      });
 
-      // Simulate network latency (replace with your actual API endpoint fetch request)
-      await new Promise((resolve) => setTimeout(resolve, 1500));
+      sessionStorage.setItem('pending_verify_email', result.email);
+      if (result.otpCode) {
+        sessionStorage.setItem('dev_otp', result.otpCode);
+      }
 
       setSuccess(true);
-    } catch {
-      setError('Something went wrong. Please try again.');
+    } catch (err) {
+      setError(getErrorMessage(err));
     } finally {
       setIsLoading(false);
     }
@@ -80,12 +87,13 @@ export default function RegisterForm() {
             We sent a verification code to{' '}
             <span className='font-semibold text-gray-700'>{email}</span>.
           </p>
-          <a
-            href='/login'
+          <button
+            type='button'
+            onClick={() => navigate('/VerifyOtpForm')}
             className='inline-flex w-full items-center justify-center bg-[#127058] hover:bg-[#0e5845] text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm'
           >
-            Go to Sign In
-          </a>
+            Verify email
+          </button>
         </div>
       </div>
     );

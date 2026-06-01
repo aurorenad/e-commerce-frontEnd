@@ -21,8 +21,8 @@ import {
 import { useCart } from '../../context/useCart';
 import CartSidebar from './CartSidebar';
 import { Link, useNavigate } from 'react-router-dom';
-import { baseListings } from '../../data/listings';
 import { useAuth } from '../../context/AuthContext';
+import { useListings } from '../../hooks/useListings';
 
 const ROLE_LABELS: Record<string, string> = {
   admin:      'Admin',
@@ -62,6 +62,7 @@ export default function Navbar() {
   const [showUserMenu, setShowUserMenu] = useState(false);
   const { cartCount, setIsCartOpen } = useCart();
   const { user, logout } = useAuth();
+  const { listings: catalogListings } = useListings();
   const navigate = useNavigate();
   const searchRef  = useRef<HTMLDivElement>(null);
   const inputRef   = useRef<HTMLInputElement>(null);
@@ -82,7 +83,7 @@ export default function Navbar() {
   // Live search results filtered from listings
   const searchResults =
     searchQuery.trim().length > 1
-      ? baseListings
+      ? catalogListings
           .filter(
             (d) =>
               d.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -123,7 +124,7 @@ export default function Navbar() {
     }
   }
 
-  function handleResultClick(id: number) {
+  function handleResultClick(id: string) {
     setIsSearchFocused(false);
     setSearchQuery('');
     navigate(`/marketplace/${id}`);

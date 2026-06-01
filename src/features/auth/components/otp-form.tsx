@@ -1,13 +1,21 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ArrowLeft, ShieldAlert, CheckCircle2 } from 'lucide-react';
+import * as authService from '../../../services/auth.service';
+import { getErrorMessage } from '../../../lib/api';
 
 export default function VerifyOtpForm() {
+  const navigate = useNavigate();
+  const email = sessionStorage.getItem('pending_verify_email') || '';
+  const devOtp = sessionStorage.getItem('dev_otp');
+
   const [otp, setOtp] = useState<string[]>(new Array(6).fill(''));
   const [timer, setTimer] = useState<number>(59);
   const [isVerified, setIsVerified] = useState<boolean>(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
   const inputRefs = useRef<(HTMLInputElement | null)[]>([]);
 
-  // Countdown timer logic for code resend trigger
   useEffect(() => {
     if (timer === 0) return;
     const intervalId = setInterval(() => {
@@ -16,7 +24,6 @@ export default function VerifyOtpForm() {
     return () => clearInterval(intervalId);
   }, [timer]);
 
-  // Handle number keystroke injection
   const handleChange = (element: HTMLInputElement, index: number) => {
     if (isNaN(Number(element.value))) return;
 
@@ -24,20 +31,17 @@ export default function VerifyOtpForm() {
     newOtp[index] = element.value.substring(element.value.length - 1);
     setOtp(newOtp);
 
-    // Auto-focus next sequential box layout string
     if (element.value !== '' && index < 5) {
       inputRefs.current[index + 1]?.focus();
     }
   };
 
-  // Handle destructive deletions safely
   const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>, index: number) => {
     if (e.key === 'Backspace' && !otp[index] && index > 0) {
       inputRefs.current[index - 1]?.focus();
     }
   };
 
-  // Handle structural clipboard drops (Pasting codes)
   const handlePaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
     e.preventDefault();
     const pastedData = e.clipboardData.getData('text').trim();
@@ -48,40 +52,46 @@ export default function VerifyOtpForm() {
     inputRefs.current[5]?.focus();
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const fullCode = otp.join('');
-    if (fullCode.length === 6) {
-      // Add platform verification endpoints here
+    if (fullCode.length !== 6 || !email) {
+      setError(email ? 'Enter the 6-digit code.' : 'Missing email — register again.');
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+    try {
+      await authService.verifyOtp(email, fullCode);
+      sessionStorage.removeItem('dev_otp');
       setIsVerified(true);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
     }
   };
 
   const handleResend = () => {
-    setOtp(new Array(6).fill(''));
     setTimer(59);
+    setOtp(new Array(6).fill(''));
     inputRefs.current[0]?.focus();
   };
 
-  // Success view block layout
   if (isVerified) {
     return (
       <div className='min-h-screen bg-[#FAFAFB] flex items-center justify-center p-4'>
-        <div className='w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-xl p-8 text-center space-y-6'>
-          <div className='mx-auto flex h-12 w-12 items-center justify-center rounded-full bg-emerald-50 text-emerald-600'>
-            <CheckCircle2 size={28} />
-          </div>
-          <div className='space-y-2'>
-            <h1 className='text-2xl font-bold tracking-tight text-gray-900'>Identity Verified</h1>
-            <p className='text-sm text-gray-500'>
-              Your code check was successful. Let's configure your new secure credentials.
-            </p>
-          </div>
+        <div className='w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-xl p-8 text-center space-y-4'>
+          <CheckCircle2 className='mx-auto text-emerald-600' size={48} />
+          <h1 className='text-2xl font-bold text-gray-900'>Email verified</h1>
+          <p className='text-sm text-gray-500'>You can now sign in with your account.</p>
           <button
-            onClick={() => window.location.href = '/reset-password'}
-            className='w-full bg-[#127058] hover:bg-[#0e5845] text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm shadow-sm'
+            type='button'
+            onClick={() => navigate('/login')}
+            className='w-full bg-[#127058] text-white font-semibold py-3 rounded-xl'
           >
-            Reset Password
+            Go to login
           </button>
         </div>
       </div>
@@ -91,78 +101,65 @@ export default function VerifyOtpForm() {
   return (
     <div className='min-h-screen bg-[#FAFAFB] flex items-center justify-center p-4'>
       <div className='w-full max-w-md bg-white border border-gray-200 rounded-2xl shadow-xl p-8 space-y-6'>
-        
-        {/* Header Block with context rules */}
-        <div className='text-center space-y-1.5'>
-          <h1 className='text-2xl font-bold tracking-tight text-gray-900'>
-            Verify Your Identity
-          </h1>
-          <p className='text-sm text-gray-500 leading-relaxed'>
-            We've transmitted a 6-digit confirmation code to your secure inbox. Please enter the numbers below.
+        <button
+          type='button'
+          onClick={() => navigate(-1)}
+          className='inline-flex items-center gap-2 text-sm font-semibold text-gray-600 hover:text-[#127058]'
+        >
+          <ArrowLeft size={16} /> Back
+        </button>
+
+        <div className='text-center space-y-2'>
+          <ShieldAlert className='mx-auto text-[#127058]' size={32} />
+          <h1 className='text-2xl font-bold text-gray-900'>Verify your email</h1>
+          <p className='text-sm text-gray-500'>
+            Code sent to <span className='font-semibold'>{email || 'your email'}</span>
           </p>
+          {devOtp && (
+            <p className='text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2'>
+              Email not configured — use this code: <strong>{devOtp}</strong>
+            </p>
+          )}
         </div>
 
+        {error && (
+          <div className='p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600'>{error}</div>
+        )}
+
         <form onSubmit={handleSubmit} className='space-y-6'>
-          
-          {/* Box Fields Row Grid */}
-          <div className='flex justify-between items-center gap-2' onPaste={handlePaste}>
+          <div className='flex justify-between gap-2'>
             {otp.map((digit, index) => (
               <input
                 key={index}
+                ref={(el) => { inputRefs.current[index] = el; }}
                 type='text'
                 inputMode='numeric'
                 maxLength={1}
                 value={digit}
-                ref={(el) => { inputRefs.current[index] = el; }}
                 onChange={(e) => handleChange(e.target, index)}
                 onKeyDown={(e) => handleKeyDown(e, index)}
-                className='w-12 h-14 text-center text-xl font-bold bg-gray-50 border border-gray-200 rounded-xl focus:outline-none focus:border-[#127058] focus:bg-white focus:ring-2 focus:ring-[#127058]/10 transition-all text-gray-900'
-                required
+                onPaste={handlePaste}
+                className='w-12 h-14 text-center text-xl font-bold border border-gray-200 rounded-xl focus:border-[#127058] focus:ring-2 focus:ring-[#127058]/20 outline-none'
               />
             ))}
           </div>
 
-          {/* Code Dispatch Resend Trigger Context */}
-          <div className='flex items-center justify-between text-xs font-medium px-0.5'>
-            <span className='text-gray-400 flex items-center gap-1.5'>
-              <ShieldAlert size={14} /> Expires soon
-            </span>
-            {timer > 0 ? (
-              <span className='text-gray-500'>
-                Resend code in <span className='font-bold text-gray-700'>0:{timer < 10 ? `0${timer}` : timer}</span>
-              </span>
-            ) : (
-              <button
-                type='button'
-                onClick={handleResend}
-                className='text-[#ef9f27] hover:text-[#d68a1d] font-bold transition-colors focus:outline-none'
-              >
-                Resend Code
-              </button>
-            )}
-          </div>
-
-          {/* Submission CTA using brand green */}
           <button
             type='submit'
-            disabled={otp.some(val => val === '')}
-            className='w-full bg-[#127058] hover:bg-[#0e5845] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm shadow-sm'
+            disabled={isLoading}
+            className='w-full bg-[#127058] hover:bg-[#0e5845] text-white font-semibold py-3 rounded-xl disabled:opacity-70'
           >
-            Verify Security Code
+            {isLoading ? 'Verifying...' : 'Verify code'}
           </button>
         </form>
 
-        {/* Back navigation loop bar */}
-        <div className='border-t border-gray-100 pt-5 text-center'>
-          <a 
-            href='/forget-password' 
-            className='inline-flex items-center justify-center gap-2 text-sm font-semibold text-gray-500 hover:text-[#127058] transition-colors group'
-          >
-            <ArrowLeft size={16} className='transform group-hover:-translate-x-0.5 transition-transform text-gray-400 group-hover:text-[#127058]' />
-            <span>Change email address</span>
-          </a>
-        </div>
-
+        <p className='text-center text-sm text-gray-500'>
+          {timer > 0 ? `Resend in ${timer}s` : (
+            <button type='button' onClick={handleResend} className='text-[#127058] font-semibold'>
+              Resend code
+            </button>
+          )}
+        </p>
       </div>
     </div>
   );

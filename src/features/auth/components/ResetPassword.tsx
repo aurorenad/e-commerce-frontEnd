@@ -1,11 +1,21 @@
 import React, { useState } from 'react';
-import { Lock, Eye, EyeOff, CheckCircle2, ArrowRight, ShieldCheck, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { Lock, Eye, EyeOff, ArrowRight, ShieldCheck, AlertCircle, CheckCircle2 } from 'lucide-react';
+import * as authService from '../../../services/auth.service';
+import { getErrorMessage } from '../../../lib/api';
 
 export default function ResetPasswordForm() {
+  const navigate = useNavigate();
+  const email = sessionStorage.getItem('pending_verify_email') || '';
+  const devOtp = sessionStorage.getItem('dev_otp');
+
+  const [otpCode, setOtpCode] = useState(devOtp || '');
   const [showPassword, setShowPassword] = useState(false);
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [isSuccess, setIsSuccess] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(false);
 
   // Live validation checks for security
   const isMinLength = password.length >= 8;
@@ -16,11 +26,23 @@ export default function ResetPasswordForm() {
   // Confirm password matching rule
   const passwordsMatch = password === confirmPassword && confirmPassword.length > 0;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (allRequirementsMet && passwordsMatch) {
-      // Connect your update password API endpoint here
+    if (!allRequirementsMet || !passwordsMatch || !email || !otpCode) {
+      setError('Complete all fields with a valid reset code.');
+      return;
+    }
+
+    setError(null);
+    setIsLoading(true);
+    try {
+      await authService.resetPassword(email, otpCode, password);
+      sessionStorage.removeItem('dev_otp');
       setIsSuccess(true);
+    } catch (err) {
+      setError(getErrorMessage(err));
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -39,7 +61,8 @@ export default function ResetPasswordForm() {
             </p>
           </div>
           <button
-            onClick={() => window.location.href = '/login'}
+            type='button'
+            onClick={() => navigate('/login')}
             className='w-full bg-[#127058] hover:bg-[#0e5845] text-white font-semibold py-3 px-4 rounded-xl transition-colors text-sm shadow-sm flex items-center justify-center gap-2 group'
           >
             <span>Proceed to Sign In</span>
@@ -64,8 +87,24 @@ export default function ResetPasswordForm() {
           </p>
         </div>
 
+        {error && (
+          <div className='p-3 bg-red-50 border border-red-200 rounded-xl text-xs text-red-600'>{error}</div>
+        )}
+
         <form onSubmit={handleSubmit} className='space-y-4'>
-          
+
+          <div className='space-y-1.5'>
+            <label className='text-sm font-semibold text-gray-700 block'>Reset code</label>
+            <input
+              type='text'
+              required
+              value={otpCode}
+              onChange={(e) => setOtpCode(e.target.value)}
+              className='w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl text-sm focus:outline-none focus:border-[#127058]'
+              placeholder='6-digit code'
+            />
+          </div>
+
           {/* New Password Field */}
           <div className='space-y-1.5'>
             <label className='text-sm font-semibold text-gray-700 block'>
@@ -152,10 +191,10 @@ export default function ResetPasswordForm() {
           {/* Submission Button - Disabled until requirements are fully clear */}
           <button
             type='submit'
-            disabled={!allRequirementsMet || !passwordsMatch}
+            disabled={isLoading || !allRequirementsMet || !passwordsMatch}
             className='w-full !mt-6 bg-[#127058] hover:bg-[#0e5845] disabled:bg-gray-200 disabled:text-gray-400 disabled:cursor-not-allowed text-white font-semibold py-3 px-4 rounded-xl transition-all text-sm shadow-sm'
           >
-            Update Security Credentials
+            {isLoading ? 'Updating...' : 'Update Security Credentials'}
           </button>
         </form>
 

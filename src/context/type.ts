@@ -6,7 +6,8 @@ export interface Spec {
 }
 
 export interface Device {
-  id: number;
+  id: string;
+  deviceId: string;
   title: string;
   current_price: number;
   original_price: number;
@@ -27,10 +28,11 @@ export interface ToastState {
 
 export interface CartContextType {
   cart: CartItem[];
-  addToCart: (device: Device) => void;
-  removeFromCart: (id: number) => void;
-  // 🟢 New control signatures:
-  updateQuantity: (id: number, delta: number) => void;
+  addToCart: (device: Device) => void | Promise<void>;
+  removeFromCart: (id: string) => void;
+  updateQuantity: (id: string, delta: number) => void;
+  clearCart: () => void;
+  syncCartFromServer: () => Promise<void>;
   cartCount: number;
   cartTotal: number;
   isCartOpen: boolean;

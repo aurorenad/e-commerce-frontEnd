@@ -7,10 +7,11 @@ const UM_ROLES = ['Customer', 'Admin', 'Technician', 'Finance Officer', 'Support
 interface UserEditModalProps {
   user: User
   onClose: () => void
-  onSave: (updated: User) => void
+  onSave: (updated: User) => void | Promise<void>
+  isSaving?: boolean
 }
 
-export default function UserEditModal({ user, onClose, onSave }: UserEditModalProps) {
+export default function UserEditModal({ user, onClose, onSave, isSaving = false }: UserEditModalProps) {
   const [form, setForm] = useState({
     name: user.name,
     email: user.email,
@@ -22,10 +23,9 @@ export default function UserEditModal({ user, onClose, onSave }: UserEditModalPr
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
 
-  const handleSave = () => {
+  const handleSave = async () => {
     if (!form.name.trim() || !form.email.trim()) return
-    onSave({ ...user, ...form })
-    onClose()
+    await onSave({ ...user, ...form })
   }
 
   return (
@@ -34,8 +34,10 @@ export default function UserEditModal({ user, onClose, onSave }: UserEditModalPr
       onClose={onClose}
       footer={
         <>
-          <button type="button" className="um-btn-secondary" onClick={onClose}>Cancel</button>
-          <button type="button" className="um-btn-primary" onClick={handleSave}>Save Changes</button>
+          <button type="button" className="um-btn-secondary" onClick={onClose} disabled={isSaving}>Cancel</button>
+          <button type="button" className="um-btn-primary" onClick={() => void handleSave()} disabled={isSaving}>
+            {isSaving ? 'Saving…' : 'Save Changes'}
+          </button>
         </>
       }
     >
