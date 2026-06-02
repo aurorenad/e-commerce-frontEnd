@@ -1,18 +1,18 @@
 import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { FO_OFFICER_PROFILE, FO_ACTIVE_LOANS_SEED } from '../../../data/mockData'
 import type { DashboardNotification } from '../shared/types/dashboard.types'
 import DashboardActions from '../../../components/DashboardActions'
+import { useAuth } from '../../../context/AuthContext'
 import FoSidebar from './FoSidebar'
 import FoOverviewPage from './FoOverviewPage'
 import FoRequestsPage from './FoRequestsPage'
+import FoSellRequestsPage from './FoSellRequestsPage'
 import FoLoansPage from './FoLoansPage'
 import FoRiskPage from './FoRiskPage'
 import FoCustomersPage from './FoCustomersPage'
-import FoReportsPage from './FoReportsPage'
 import FoSettingsPage from './FoSettingsPage'
 import FoProfilePage from './FoProfilePage'
-import { PAGE_META, FO_STATIC_ALERTS } from './foHelpers'
+import { PAGE_META } from './foHelpers'
 import './FinanceOfficerDashboard.css'
 
 interface Props {
@@ -25,40 +25,21 @@ interface Props {
 
 export default function FinanceOfficerDashboard({ onBack: _onBack, darkMode = false, onToggleDark, notifications = [], onMarkNotifRead }: Props) {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [page, setPage]           = useState('overview')
   const [profilePic, setProfilePic] = useState<string | null>(null)
-
-  const overdueLoans = FO_ACTIVE_LOANS_SEED.filter((l) => l.status === 'Overdue' || l.status === 'Due Soon')
-  const foNotifications: DashboardNotification[] = [
-    ...FO_STATIC_ALERTS.map((a, i) => ({
-      id: `FO-STATIC-${i}`,
-      type: a.type as DashboardNotification['type'],
-      title: a.type === 'error' ? 'Escalation needed' : a.type === 'warn' ? 'Requests awaiting' : 'Approval milestone',
-      desc: a.msg,
-      time: 'Today',
-      read: a.type === 'info',
-    })),
-    ...overdueLoans.map((l) => ({
-      id: l.ref,
-      type: (l.status === 'Overdue' ? 'error' : 'warn') as DashboardNotification['type'],
-      title: `${l.status}: ${l.customer}`,
-      desc: `${l.device} — Next due: ${l.nextDue}`,
-      time: 'Loan alert',
-      read: false,
-    })),
-    ...notifications,
-  ]
+  const foNotifications: DashboardNotification[] = notifications
 
   const copy = PAGE_META[page] ?? PAGE_META.overview
 
   const renderPage = () => {
     switch (page) {
       case 'overview':  return <FoOverviewPage />
+      case 'sell-requests': return <FoSellRequestsPage />
       case 'requests':  return <FoRequestsPage />
       case 'loans':     return <FoLoansPage />
       case 'risk':      return <FoRiskPage />
       case 'customers': return <FoCustomersPage />
-      case 'reports':   return <FoReportsPage />
       case 'settings':  return <FoSettingsPage />
       case 'profile':   return <FoProfilePage profilePic={profilePic} onProfilePicChange={setProfilePic} />
       default:          return <FoOverviewPage />
@@ -90,7 +71,7 @@ export default function FinanceOfficerDashboard({ onBack: _onBack, darkMode = fa
         <header className="fo-portal-header">
           <span className="fo-portal-tagline">FINANCE PORTAL</span>
           <DashboardActions darkMode={darkMode} onToggleDark={onToggleDark}
-            userName={FO_OFFICER_PROFILE.name} role={FO_OFFICER_PROFILE.role}
+            userName={user?.name || 'Finance Officer'} role="Finance Officer"
             notifications={foNotifications} onMarkRead={onMarkNotifRead}
             onProfile={() => setPage('profile')} />
         </header>

@@ -6,6 +6,7 @@ import TechOverviewPage from './TechOverviewPage'
 import AssignedDevicesPage from './AssignedDevicesPage'
 import DeviceDetailsPage from './DeviceDetailsPage'
 import TechProfilePage from './TechProfilePage'
+import TechSellRequestsPage from './TechSellRequestsPage'
 import { NavIcon } from './TechIcons'
 import { cloneTickets, TW_NAV } from './techHelpers'
 import type { RepairTicket } from './techHelpers'
@@ -124,6 +125,9 @@ export default function TechnicianWorkbench({ onBack: _onBack, darkMode = false,
         )}
         {page === 'profile' && (
           <TechProfilePage profilePic={profilePic} onProfilePicChange={setProfilePic} />
+        )}
+        {page === 'sell-requests' && (
+          <TechSellRequestsPage onOpenProfile={() => setPage('profile')} />
         )}
       </main>
     </div>

@@ -17,6 +17,7 @@ export interface FoDelinquent {
 export interface FoCustomer {
   id: string; name: string; email: string; phone: string
   loans: number; totalBorrowed: string; riskLevel: string; status: string
+  loanHistory?: FoLoan[]
 }
 
 export interface FoRegionalReport {
@@ -52,6 +53,7 @@ export const FINANCING_SUB = [
 
 export const PAGE_META: Record<string, { title: string; subtitle: string }> = {
   overview:  { title: 'Overview',           subtitle: 'Monitor loan portfolio health, approvals, and revenue performance.' },
+  'sell-requests': { title: 'Sell Device Requests', subtitle: 'Review customer sell/trade-in submissions and accept or reject offers.' },
   requests:  { title: 'Financing Requests', subtitle: 'Review and action incoming financing applications from customers.' },
   loans:     { title: 'Active Loans',       subtitle: 'Track all active loan accounts, due dates, and payment statuses.' },
   risk:      { title: 'Risk & Delinquency', subtitle: 'Identify delinquent accounts and take action to recover outstanding amounts.' },

@@ -16,7 +16,8 @@ import type { Listing } from '../features/marketplace/types'
 import { useCart } from '../context/useCart'
 import { fetchOrders, fetchWishlist, removeWishlistItem } from '../services/marketplace.service'
 import { fetchFinancingApplications } from '../services/payments.service'
-import { fetchProfile, updateProfile } from '../services/users.service'
+import { fetchProfile, updateProfile, updateProfileAvatar } from '../services/users.service'
+import { fetchTradeIns, customerDecisionTradeIn, type ApiTradeIn } from '../services/devices.service'
 import { getErrorMessage } from '../lib/api'
 import { useSupport } from '../context/SupportContext'
 import type { SupportTicket, TicketStatus } from '../context/SupportContext'
@@ -47,6 +48,7 @@ const TABS = [
   { id: 'overview',      label: 'Overview',        icon: TrendingUp    },
   { id: 'orders',        label: 'Orders',           icon: ShoppingBag   },
   { id: 'installments',  label: 'Installments',     icon: CreditCard    },
+  { id: 'offers',        label: 'Sell Offers',      icon: Package       },
   { id: 'saved',         label: 'Saved Devices',    icon: Heart         },
   { id: 'support',       label: 'Support',          icon: MessageSquare },
   { id: 'security',      label: 'Security',         icon: Shield        },
@@ -60,7 +62,7 @@ const TICKET_STATUS_STYLES: Record<TicketStatus, { label: string; cls: string }>
 }
 
 export default function CustomerProfile() {
-  const { user, logout } = useAuth()
+  const { user, logout, refreshUser } = useAuth()
   const navigate = useNavigate()
   const { addToCart } = useCart()
   const { getTicketsForCustomer, sendCustomerMessage, createTicket, markReadByCustomer } = useSupport()
@@ -68,13 +70,14 @@ export default function CustomerProfile() {
   const [activeTab, setActiveTab]         = useState('overview')
   const [editing, setEditing]             = useState(false)
   const [name, setName]                   = useState(user?.name ?? '')
-  const [phone, setPhone]                 = useState('+250 788 123 456')
+  const [phone, setPhone]                 = useState('')
   const [draftName, setDraftName]         = useState(name)
-  const [draftPhone, setDraftPhone]       = useState(phone)
+  const [draftPhone, setDraftPhone]       = useState('')
   const [orderFilter, setOrderFilter]     = useState('All')
   const [orders, setOrders]               = useState<CustomerOrder[]>([])
   const [installments, setInstallments]   = useState<CustomerInstallment[]>([])
   const [wishlistListings, setWishlistListings] = useState<Listing[]>([])
+  const [sellOffers, setSellOffers]       = useState<ApiTradeIn[]>([])
   const [dataLoading, setDataLoading]     = useState(true)
   const [dataError, setDataError]         = useState<string | null>(null)
   const [addedId, setAddedId]             = useState<string | null>(null)
@@ -114,11 +117,12 @@ export default function CustomerProfile() {
       setDataLoading(true)
       setDataError(null)
       try {
-        const [profile, orderRows, financingRows, wishlistRows] = await Promise.all([
+        const [profile, orderRows, financingRows, wishlistRows, tradeIns] = await Promise.all([
           fetchProfile(),
           fetchOrders(),
           fetchFinancingApplications(),
           fetchWishlist(),
+          fetchTradeIns(),
         ])
 
         if (cancelled) return
@@ -129,6 +133,7 @@ export default function CustomerProfile() {
           setPhone(profile.phone)
           setDraftPhone(profile.phone)
         }
+        if (profile.avatarUrl) setProfilePic(profile.avatarUrl)
 
         setOrders(orderRows.map(mapApiOrderToCustomerOrder))
         setInstallments(
@@ -148,6 +153,7 @@ export default function CustomerProfile() {
             }),
           ),
         )
+        setSellOffers(tradeIns)
       } catch (err) {
         if (!cancelled) setDataError(getErrorMessage(err))
       } finally {
@@ -164,17 +170,38 @@ export default function CustomerProfile() {
     const firstName = parts[0] || 'User'
     const lastName = parts.slice(1).join(' ') || ''
     try {
-      const updated = await updateProfile({ firstName, lastName, phone: draftPhone })
+      const updated = await updateProfile({ firstName, lastName, phone: draftPhone.trim() || undefined })
       const fullName = `${updated.firstName} ${updated.lastName}`.trim()
       setName(fullName)
-      setPhone(updated.phone || draftPhone)
+      setPhone(updated.phone || '')
       setDraftName(fullName)
-      setDraftPhone(updated.phone || draftPhone)
-    } catch {
-      setName(draftName)
-      setPhone(draftPhone)
+      setDraftPhone(updated.phone || '')
+      await refreshUser()
+      setDataError(null)
+    } catch (err) {
+      setDataError(getErrorMessage(err))
     }
     setEditing(false)
+  }
+
+  async function handleOfferDecision(tradeInId: string, decision: 'APPROVE' | 'REJECT') {
+    try {
+      await customerDecisionTradeIn({ tradeInId, decision })
+      setSellOffers((prev) =>
+        prev.map((offer) =>
+          offer.id === tradeInId
+            ? {
+                ...offer,
+                customerOfferDecision: decision === 'APPROVE' ? 'APPROVED' : 'REJECTED',
+                customerDecisionAt: new Date().toISOString(),
+                status: decision === 'APPROVE' ? 'COMPLETED' : 'REJECTED',
+              }
+            : offer,
+        ),
+      )
+    } catch (err) {
+      setDataError(getErrorMessage(err))
+    }
   }
 
   function cancelEdit() {
@@ -205,9 +232,14 @@ export default function CustomerProfile() {
   function handleProfilePicChange(e: React.ChangeEvent<HTMLInputElement>) {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => setProfilePic(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    const fd = new FormData()
+    fd.append('avatar', file)
+    void updateProfileAvatar(fd)
+      .then(async (u) => {
+        if (u.avatarUrl) setProfilePic(u.avatarUrl)
+        await refreshUser()
+      })
+      .catch((err) => setDataError(getErrorMessage(err)))
   }
 
   function handleSendReply(e: { preventDefault(): void }) {
@@ -654,6 +686,96 @@ export default function CustomerProfile() {
                   Browse Devices <ArrowRight size={14} />
                 </Link>
               </div>
+            </div>
+          )}
+
+          {/* SELL OFFERS ────────────────────────────────────────────────── */}
+          {activeTab === 'offers' && (
+            <div className='space-y-4'>
+              {sellOffers.length === 0 ? (
+                <div className='bg-white border border-gray-100 rounded-2xl shadow-sm p-12 text-center'>
+                  <Package size={36} className='mx-auto text-gray-300 mb-3' />
+                  <p className='text-sm font-semibold text-gray-500'>No sell requests yet</p>
+                  <Link to='/Sell-Your-Device' className='inline-flex items-center gap-1.5 mt-4 text-sm font-bold text-[#127058] hover:underline'>
+                    Submit a device <ArrowRight size={14} />
+                  </Link>
+                </div>
+              ) : (
+                <div className='space-y-3'>
+                  {sellOffers.map((offer) => {
+                    const customerActionPending =
+                      offer.status === 'APPROVED' && !offer.customerOfferDecision && offer.finalOfferAmount
+                    const statusLabel =
+                      offer.customerOfferDecision === 'APPROVED'
+                        ? 'Accepted by you'
+                        : offer.customerOfferDecision === 'REJECTED'
+                        ? 'Rejected by you'
+                        : offer.status
+                    return (
+                      <div key={offer.id} className='bg-white border border-gray-100 rounded-2xl shadow-sm p-5'>
+                        <div className='flex items-center justify-between gap-3 flex-wrap'>
+                          <div>
+                            <p className='text-sm font-bold text-gray-900'>{offer.brand} {offer.model}</p>
+                            <p className='text-xs text-gray-500 mt-0.5'>Request ID: {offer.id.slice(0, 8).toUpperCase()}</p>
+                          </div>
+                          <span className={`text-xs font-semibold px-2.5 py-1 rounded-full ${STATUS_STYLES[statusLabel] ?? 'bg-gray-100 text-gray-600'}`}>
+                            {statusLabel}
+                          </span>
+                        </div>
+
+                        <div className='mt-4 grid sm:grid-cols-3 gap-3'>
+                          <div className='bg-gray-50 rounded-xl p-3'>
+                            <p className='text-[10px] font-semibold text-gray-400 uppercase tracking-wide'>AI Offer</p>
+                            <p className='text-sm font-bold text-gray-800 mt-0.5'>${offer.estimatedValue.toLocaleString()}</p>
+                          </div>
+                          <div className='bg-gray-50 rounded-xl p-3'>
+                            <p className='text-[10px] font-semibold text-gray-400 uppercase tracking-wide'>Repair Estimate</p>
+                            <p className='text-sm font-bold text-gray-800 mt-0.5'>
+                              {offer.technicianRepairEstimate != null ? `$${offer.technicianRepairEstimate.toLocaleString()}` : 'Pending technician review'}
+                            </p>
+                          </div>
+                          <div className='bg-gray-50 rounded-xl p-3'>
+                            <p className='text-[10px] font-semibold text-gray-400 uppercase tracking-wide'>Final Offer</p>
+                            <p className='text-sm font-bold text-[#127058] mt-0.5'>
+                              {offer.finalOfferAmount != null ? `$${offer.finalOfferAmount.toLocaleString()}` : 'Pending finance decision'}
+                            </p>
+                          </div>
+                        </div>
+
+                        {offer.technicianComment && (
+                          <p className='text-xs text-gray-600 mt-3'>
+                            <strong>Technician:</strong> {offer.technicianComment}
+                          </p>
+                        )}
+                        {offer.officerNotes && (
+                          <p className='text-xs text-gray-600 mt-1'>
+                            <strong>Finance:</strong> {offer.officerNotes}
+                          </p>
+                        )}
+
+                        {customerActionPending && (
+                          <div className='mt-4 flex gap-2'>
+                            <button
+                              type='button'
+                              onClick={() => void handleOfferDecision(offer.id, 'APPROVE')}
+                              className='px-4 py-2 rounded-xl text-sm font-semibold bg-[#127058] text-white hover:bg-[#0e5845]'
+                            >
+                              Approve Offer
+                            </button>
+                            <button
+                              type='button'
+                              onClick={() => void handleOfferDecision(offer.id, 'REJECT')}
+                              className='px-4 py-2 rounded-xl text-sm font-semibold border border-red-200 text-red-600 hover:bg-red-50'
+                            >
+                              Reject Offer
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    )
+                  })}
+                </div>
+              )}
             </div>
           )}
 

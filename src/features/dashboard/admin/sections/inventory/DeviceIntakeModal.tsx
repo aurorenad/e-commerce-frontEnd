@@ -24,6 +24,7 @@ export default function DeviceIntakeModal({ onClose, onCreated }: Props) {
   })
   const [error, setError] = useState<string | null>(null)
   const [isLoading, setIsLoading] = useState(false)
+  const [images, setImages] = useState<File[]>([])
 
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value }))
@@ -39,15 +40,17 @@ export default function DeviceIntakeModal({ onClose, onCreated }: Props) {
     setIsLoading(true)
     setError(null)
     try {
-      const device = await intakeDevice({
-        brand: form.brand.trim(),
-        model: form.model.trim(),
-        originalSerialNumber: form.serial.trim() || undefined,
-        condition: conditionToApi(form.condition),
-        batteryHealth: Number(form.batteryHealth) || 100,
-        basePrice: Number(form.basePrice),
-        price: Number(form.price),
-      })
+      const payload = new FormData()
+      payload.append('brand', form.brand.trim())
+      payload.append('model', form.model.trim())
+      if (form.serial.trim()) payload.append('originalSerialNumber', form.serial.trim())
+      payload.append('condition', conditionToApi(form.condition))
+      payload.append('batteryHealth', String(Number(form.batteryHealth) || 100))
+      payload.append('basePrice', String(Number(form.basePrice)))
+      payload.append('price', String(Number(form.price)))
+      images.forEach((file) => payload.append('images', file))
+
+      const device = await intakeDevice(payload)
       onCreated(mapApiDeviceToInventory(device))
       onClose()
     } catch (err) {
@@ -101,6 +104,17 @@ export default function DeviceIntakeModal({ onClose, onCreated }: Props) {
         <label className="um-form-field">
           <span className="um-form-label">List price ($)</span>
           <input className="um-form-input" type="number" min={0} value={form.price} onChange={set('price')} />
+        </label>
+        <label className="um-form-field" style={{ gridColumn: '1 / -1' }}>
+          <span className="um-form-label">Device images (optional)</span>
+          <input
+            className="um-form-input"
+            type="file"
+            accept="image/*"
+            multiple
+            onChange={(e) => setImages(Array.from(e.target.files ?? []).slice(0, 5))}
+          />
+          {images.length > 0 && <small className="text-xs text-gray-500 mt-1">{images.length} image(s) selected</small>}
         </label>
       </div>
     </ModalBase>

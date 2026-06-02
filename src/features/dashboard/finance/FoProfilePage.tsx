@@ -1,5 +1,8 @@
-import { useRef, useState } from 'react'
-import { FO_OFFICER_PROFILE, FO_ACTIVITY_LOG } from '../../../data/mockData'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import { fetchProfile, updateProfile, updateProfileAvatar } from '../../../services/users.service'
+import { fetchFinancingApplications } from '../../../services/payments.service'
+import { useAuth } from '../../../context/AuthContext'
+import { getErrorMessage } from '../../../lib/api'
 import '../admin/sections/profile/ProfileSection.css'
 
 interface Props {
@@ -12,32 +15,66 @@ const COLOR_MAP: Record<string, string> = {
   escalate: '#ef4444', settings: '#3b82f6', complete: '#22c55e',
 }
 
-const PROF_STATS = [
-  { label: 'Loans Processed',    val: '1,284', hint: 'All time' },
-  { label: 'Approval Rate',      val: '87%',   hint: 'Last 90 days' },
-  { label: 'Avg Review Time',    val: '1.4d',  hint: 'Per application' },
-  { label: 'Delinquency Handled',val: '212',   hint: 'Resolved cases' },
-]
-
 export default function FoProfilePage({ profilePic, onProfilePicChange }: Props) {
+  const { refreshUser } = useAuth()
   const fileRef = useRef<HTMLInputElement>(null)
   const [editName,  setEditName]  = useState(false)
-  const [name,      setName]      = useState(FO_OFFICER_PROFILE.name)
+  const [name,      setName]      = useState('Finance Officer')
   const [editEmail, setEditEmail] = useState(false)
-  const [email,     setEmail]     = useState(FO_OFFICER_PROFILE.email)
+  const [email,     setEmail]     = useState('finance@example.com')
+  const [phone, setPhone] = useState('—')
+  const [profileId, setProfileId] = useState('FO-—')
+  const [role, setRole] = useState('Finance Officer')
+  const [appsProcessed, setAppsProcessed] = useState(0)
+  const [approvedCount, setApprovedCount] = useState(0)
   const [saved,     setSaved]     = useState(false)
+  const [saving, setSaving] = useState(false)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchProfile()
+      .then((u) => {
+        const fullName = `${u.firstName} ${u.lastName}`.trim()
+        setName(fullName || 'Finance Officer')
+        setEmail(u.email)
+        setPhone(u.phone || '—')
+        setProfileId(`FO-${u.id.slice(0, 6).toUpperCase()}`)
+        setRole('Finance Officer')
+        if (u.avatarUrl) onProfilePicChange(u.avatarUrl)
+      })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load profile'))
+
+    fetchFinancingApplications()
+      .then((apps) => {
+        setAppsProcessed(apps.length)
+        setApprovedCount(apps.filter((a) => a.status === 'APPROVED').length)
+      })
+      .catch(() => {})
+  }, [onProfilePicChange])
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    const reader = new FileReader()
-    reader.onload = (ev) => onProfilePicChange(ev.target?.result as string)
-    reader.readAsDataURL(file)
+    const fd = new FormData()
+    fd.append('avatar', file)
+    void updateProfileAvatar(fd)
+      .then(async (u) => {
+        if (u.avatarUrl) onProfilePicChange(u.avatarUrl)
+        await refreshUser()
+      })
+      .catch((err) => setLoadError(getErrorMessage(err)))
     e.target.value = ''
   }
 
+  const initials = useMemo(
+    () => name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase(),
+    [name],
+  )
+  const approvalRate = appsProcessed > 0 ? Math.round((approvedCount / appsProcessed) * 100) : 0
+
   return (
     <div className="fo-page-wrap">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{loadError}</p>}
       <div className="prf-page">
         <div className="prf-left">
           <div className="prf-card fo-panel-card">
@@ -46,7 +83,7 @@ export default function FoProfilePage({ profilePic, onProfilePicChange }: Props)
               <div className="prf-avatar-ring" onClick={() => fileRef.current?.click()}>
                 {profilePic
                   ? <img src={profilePic} alt="Profile" className="prf-avatar-img" />
-                  : <div className="prf-avatar-initials">{FO_OFFICER_PROFILE.initials}</div>}
+                  : <div className="prf-avatar-initials">{initials}</div>}
                 <div className="prf-avatar-overlay">
                   <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>
                     <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
@@ -68,8 +105,8 @@ export default function FoProfilePage({ profilePic, onProfilePicChange }: Props)
                   ? <input className="prf-name-input" value={name} onChange={(e) => setName(e.target.value)} onBlur={() => setEditName(false)} autoFocus />
                   : <><h2 className="prf-name">{name}</h2><button type="button" className="prf-edit-btn" onClick={() => setEditName(true)}>Edit</button></>}
               </div>
-              <span className="prf-role-tag">{FO_OFFICER_PROFILE.role}</span>
-              <p className="prf-id">{FO_OFFICER_PROFILE.id}</p>
+              <span className="prf-role-tag">{role}</span>
+              <p className="prf-id">{profileId}</p>
               <div className="prf-info-list">
                 <div className="prf-info-item">
                   <span className="prf-info-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z"/><polyline points="22,6 12,13 2,6"/></svg></span>
@@ -81,12 +118,34 @@ export default function FoProfilePage({ profilePic, onProfilePicChange }: Props)
                 </div>
                 <div className="prf-info-item">
                   <span className="prf-info-icon"><svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07A19.5 19.5 0 0 1 4.69 13a19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 3.6 2.18h3a2 2 0 0 1 2 1.72c.127.96.361 1.903.7 2.81a2 2 0 0 1-.45 2.11L7.91 9.91a16 16 0 0 0 6.06 6.06l1.27-1.27a2 2 0 0 1 2.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0 1 22 16.92z"/></svg></span>
-                  <div className="prf-info-text"><p className="prf-info-label">Phone</p><span className="prf-info-val">{FO_OFFICER_PROFILE.phone}</span></div>
+                  <div className="prf-info-text"><p className="prf-info-label">Phone</p><span className="prf-info-val">{phone}</span></div>
                 </div>
               </div>
               <button type="button" className={`prf-save-btn${saved ? ' prf-save-btn--saved' : ''}`}
-                onClick={() => { setSaved(true); setTimeout(() => setSaved(false), 2000) }}>
-                {saved ? '✓ Changes Saved' : 'Save Changes'}
+                disabled={saving}
+                onClick={() => {
+                  const [firstName, ...rest] = name.trim().split(/\s+/)
+                  const lastName = rest.join(' ')
+                  const phoneValue = phone.trim() && phone !== '—' ? phone.trim() : undefined
+                  setSaving(true)
+                  void updateProfile({
+                    firstName: firstName || undefined,
+                    lastName,
+                    ...(phoneValue ? { phone: phoneValue } : {}),
+                  })
+                    .then(async (updated) => {
+                      const fullName = `${updated.firstName} ${updated.lastName}`.trim()
+                      setName(fullName)
+                      setPhone(updated.phone || '—')
+                      await refreshUser()
+                      setLoadError(null)
+                      setSaved(true)
+                      setTimeout(() => setSaved(false), 2000)
+                    })
+                    .catch((err) => setLoadError(getErrorMessage(err)))
+                    .finally(() => setSaving(false))
+                }}>
+                {saved ? '✓ Changes Saved' : saving ? 'Saving…' : 'Save Changes'}
               </button>
             </div>
           </div>
@@ -94,7 +153,12 @@ export default function FoProfilePage({ profilePic, onProfilePicChange }: Props)
 
         <div className="prf-right">
           <div className="prf-stats-row">
-            {PROF_STATS.map((s) => (
+            {[
+              { label: 'Loans Processed', val: appsProcessed.toLocaleString(), hint: 'All time' },
+              { label: 'Approval Rate', val: `${approvalRate}%`, hint: 'All records' },
+              { label: 'Approved Cases', val: approvedCount.toLocaleString(), hint: 'Applications' },
+              { label: 'Pending Reviews', val: Math.max(0, appsProcessed - approvedCount).toLocaleString(), hint: 'Current queue' },
+            ].map((s) => (
               <div key={s.label} className="prf-stat-card">
                 <p className="prf-stat-num">{s.val}</p>
                 <p className="prf-stat-label">{s.label}</p>
@@ -105,7 +169,10 @@ export default function FoProfilePage({ profilePic, onProfilePicChange }: Props)
           <article className="prf-section-card">
             <h3 className="prf-section-title">Recent Activity</h3>
             <ul className="prf-timeline">
-              {FO_ACTIVITY_LOG.map((a) => (
+              {[
+                { id: '1', action: `${appsProcessed} financing applications loaded`, at: 'just now', type: 'settings' },
+                { id: '2', action: `${approvedCount} applications approved`, at: 'latest snapshot', type: 'approve' },
+              ].map((a) => (
                 <li key={a.id} className="prf-timeline-item">
                   <span className="prf-timeline-dot" style={{ background: COLOR_MAP[a.type] ?? '#64748b' }} />
                   <div><p className="prf-timeline-action">{a.action}</p><p className="prf-timeline-time">{a.at}</p></div>

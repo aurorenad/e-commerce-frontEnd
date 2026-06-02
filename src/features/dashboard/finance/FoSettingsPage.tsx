@@ -1,9 +1,20 @@
 import { useState } from 'react'
-import { FO_SETTINGS_SEED } from '../../../data/mockData'
 import type { FoSettings } from './foHelpers'
 
+const DEFAULT_SETTINGS: FoSettings = {
+  interestRates: { standard: 12.5, premium: 9.5, business: 14.0 },
+  loanTerms: [6, 12, 18],
+  lateFeePercent: 3.0,
+  gracePeriodDays: 5,
+  autoReminder: true,
+  reminderDaysBefore: 3,
+  escalationThresholdDays: 14,
+  language: 'en',
+  currency: 'USD',
+}
+
 export default function FoSettingsPage() {
-  const [settings, setSettings] = useState<FoSettings>(FO_SETTINGS_SEED)
+  const [settings, setSettings] = useState<FoSettings>(DEFAULT_SETTINGS)
   const [saved, setSaved]       = useState(false)
 
   const update = (path: string, value: unknown) => {
@@ -73,11 +84,8 @@ export default function FoSettingsPage() {
           <h3 className="fo-settings-section-title">Localization</h3>
           <label className="fo-settings-field">
             <span>Language</span>
-            <select className="fo-form-input fo-form-select" value={settings.language} onChange={(e) => update('language', e.target.value)}>
+            <select className="fo-form-input fo-form-select" value={'en'} disabled>
               <option value="en">English</option>
-              <option value="fr">French (Français)</option>
-              <option value="rw">Kinyarwanda</option>
-              <option value="sw">Swahili</option>
             </select>
           </label>
           <label className="fo-settings-field" style={{ marginTop: '12px' }}>
@@ -85,9 +93,6 @@ export default function FoSettingsPage() {
             <select className="fo-form-input fo-form-select" value={settings.currency} onChange={(e) => update('currency', e.target.value)}>
               <option value="USD">USD — US Dollar</option>
               <option value="RWF">RWF — Rwandan Franc</option>
-              <option value="EUR">EUR — Euro</option>
-              <option value="KES">KES — Kenyan Shilling</option>
-              <option value="UGX">UGX — Ugandan Shilling</option>
             </select>
           </label>
         </div>

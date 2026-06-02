@@ -1,8 +1,8 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { ADMIN_PROFILE, NAV_ITEMS, NOTIFICATIONS_SEED, SECTION_COPY } from '../../../data/mockData'
 import type { DashboardNotification } from '../shared/types/dashboard.types'
 import DashboardActions from '../../../components/DashboardActions'
+import { useAuth } from '../../../context/AuthContext'
 import OverviewSection from './sections/overview/OverviewSection'
 import UsersSection from './sections/users/UsersSection'
 import InventorySection from './sections/inventory/InventorySection'
@@ -16,12 +16,33 @@ import './AdminDashboard.css'
 
 type ViewMode = 'admin' | 'technician' | 'finance'
 
+const NAV_ITEMS = [
+  { id: 'overview', label: 'Overview' },
+  { id: 'users', label: 'Users' },
+  { id: 'inventory', label: 'Inventory' },
+  { id: 'pricing', label: 'Pricing' },
+  { id: 'financing', label: 'Financing' },
+  { id: 'sales', label: 'Sales' },
+  { id: 'profile', label: 'Profile' },
+]
+
+const SECTION_COPY: Record<string, { title: string; subtitle: string }> = {
+  overview: { title: 'Overview', subtitle: 'Real-time platform KPIs and system activity.' },
+  users: { title: 'Users', subtitle: 'Manage users and roles.' },
+  inventory: { title: 'Inventory', subtitle: 'Track device lifecycle and stock.' },
+  pricing: { title: 'Pricing', subtitle: 'Review pricing and valuation outcomes.' },
+  financing: { title: 'Financing', subtitle: 'Review financing operations and risk.' },
+  sales: { title: 'Sales', subtitle: 'Track orders and revenue performance.' },
+  profile: { title: 'Profile', subtitle: 'Manage your admin account profile.' },
+}
+
 export default function AdminDashboard() {
   const navigate = useNavigate()
+  const { user } = useAuth()
   const [activeTab, setActiveTab] = useState('overview')
   const [viewMode, setViewMode] = useState<ViewMode>('admin')
   const [darkMode, setDarkMode] = useState(false)
-  const [notifications, setNotifications] = useState<DashboardNotification[]>(NOTIFICATIONS_SEED)
+  const [notifications, setNotifications] = useState<DashboardNotification[]>([])
 
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', darkMode ? 'dark' : 'light')
@@ -136,8 +157,8 @@ export default function AdminDashboard() {
           <DashboardActions
             darkMode={darkMode}
             onToggleDark={toggleDark}
-            userName={ADMIN_PROFILE.name}
-            role={ADMIN_PROFILE.role}
+            userName={user?.name || 'Admin'}
+            role="Admin"
             notifications={notifications}
             onMarkRead={markNotifRead}
             onProfile={() => setActiveTab('profile')}

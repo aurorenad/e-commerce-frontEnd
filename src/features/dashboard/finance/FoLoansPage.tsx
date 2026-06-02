@@ -1,22 +1,47 @@
-import { useMemo, useState } from 'react'
-import { FO_ACTIVE_LOANS_SEED } from '../../../data/mockData'
+import { useMemo, useState, useEffect } from 'react'
+import { fetchFinancingApplications } from '../../../services/payments.service'
 import { StatusBadge } from './FoBadges'
+import type { ApiFinancingWithRepayments } from '../../../lib/mappers'
+import { formatUsd, getLoanHealthStatus } from './foData'
 
 export default function FoLoansPage() {
   const [search, setSearch]           = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [showCreate, setShowCreate]   = useState(false)
+  const [apps, setApps] = useState<ApiFinancingWithRepayments[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchFinancingApplications({ status: 'APPROVED' })
+      .then((rows) => { setApps(rows); setLoadError(null) })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load loans'))
+  }, [])
 
   const filtered = useMemo(() => {
-    let list = FO_ACTIVE_LOANS_SEED
+    let list = apps.map((app) => {
+      const nextUnpaid = (app.repayments ?? []).find((r) => r.status !== 'PAID')
+      const unpaidCount = (app.repayments ?? []).filter((r) => r.status !== 'PAID').length
+      return {
+        ref: app.id.slice(0, 8).toUpperCase(),
+        customer: app.customer ? `${app.customer.firstName} ${app.customer.lastName}` : 'Customer',
+        device: app.device ? `${app.device.brand} ${app.device.model}` : 'Device',
+        monthly: formatUsd(app.monthlyRepayment),
+        remaining: formatUsd(unpaidCount > 0 ? unpaidCount * app.monthlyRepayment : 0),
+        nextDue: nextUnpaid
+          ? new Date(nextUnpaid.dueDate).toISOString().slice(0, 10)
+          : '—',
+        status: getLoanHealthStatus(app),
+      }
+    })
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((r) => r.ref.toLowerCase().includes(q) || r.customer.toLowerCase().includes(q))
     if (statusFilter !== 'all') list = list.filter((r) => r.status.toLowerCase().replace(' ', '-') === statusFilter)
     return list
-  }, [search, statusFilter])
+  }, [apps, search, statusFilter])
 
   return (
     <div className="fo-page-wrap">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{loadError}</p>}
       <div className="fo-toolbar">
         <div className="fo-search-box">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3-3" /></svg>

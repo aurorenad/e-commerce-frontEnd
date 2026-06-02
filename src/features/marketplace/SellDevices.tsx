@@ -1,5 +1,9 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { useAuth } from '../../context/AuthContext';
+import { submitSellDevice, type SellDeviceAiEvaluation } from '../../services/devices.service';
+import { fetchProfile } from '../../services/users.service';
+import { getErrorMessage } from '../../lib/api';
 import {
   ChevronRight,
   ChevronLeft,
@@ -388,43 +392,48 @@ function Step3({ data, set, images, setImages }: {
 }
 
 function Step4({ data, set }: { data: FormData; set: (k: keyof FormData, v: string) => void }) {
+  const hasProfileContact = Boolean(data.name && data.email && data.phone);
+
   return (
     <div className='space-y-6'>
       <div>
         <h2 className='text-xl font-black text-gray-900'>Your contact details</h2>
-        <p className='text-gray-500 text-sm mt-1'>We'll use these to send you an offer and arrange pickup or drop-off.</p>
+        <p className='text-gray-500 text-sm mt-1'>
+          These details are synced from your account profile and cannot be edited here.
+        </p>
       </div>
 
       <div className='grid grid-cols-1 sm:grid-cols-2 gap-4'>
         <Field label='Full Name *'>
           <div className='relative'>
             <User className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
-            <input className={`${inputCls} pl-10`} placeholder='Jean Baptiste Uwimana' value={data.name}
-              onChange={(e) => set('name', e.target.value)} />
+            <input className={`${inputCls} pl-10 opacity-80`} placeholder='Full name from profile' value={data.name} readOnly />
           </div>
         </Field>
 
         <Field label='Phone Number *'>
           <div className='relative'>
             <Phone className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
-            <input className={`${inputCls} pl-10`} placeholder='+250 788 000 000' type='tel' value={data.phone}
-              onChange={(e) => set('phone', e.target.value)} />
+            <input className={`${inputCls} pl-10 opacity-80`} placeholder='Phone from profile' type='tel' value={data.phone} readOnly />
           </div>
         </Field>
 
         <Field label='Email Address *'>
           <div className='relative'>
             <Mail className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
-            <input className={`${inputCls} pl-10`} placeholder='you@email.com' type='email' value={data.email}
-              onChange={(e) => set('email', e.target.value)} />
+            <input className={`${inputCls} pl-10 opacity-80`} placeholder='Email from profile' type='email' value={data.email} readOnly />
           </div>
         </Field>
 
-        <Field label='Your Location *'>
+        <Field label='Your Location'>
           <div className='relative'>
             <MapPin className='absolute left-3.5 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400' />
-            <input className={`${inputCls} pl-10`} placeholder='e.g. Kigali, Gasabo' value={data.location}
-              onChange={(e) => set('location', e.target.value)} />
+            <input
+              className={`${inputCls} pl-10 opacity-80`}
+              placeholder='Location from profile (optional)'
+              value={data.location || 'Not set in profile'}
+              readOnly
+            />
           </div>
         </Field>
       </div>
@@ -448,14 +457,25 @@ function Step4({ data, set }: { data: FormData; set: (k: keyof FormData, v: stri
         </div>
       </Field>
 
+      {!hasProfileContact && (
+        <div className='bg-amber-50 border border-amber-200 rounded-2xl p-4'>
+          <p className='text-sm font-bold text-amber-700'>Missing profile contact details</p>
+          <p className='text-xs text-amber-700 mt-1'>
+            Please update your profile with name, email, and phone before submitting a sell request.
+          </p>
+        </div>
+      )}
+
       <div className='bg-[#127058]/5 border border-[#127058]/20 rounded-2xl p-4 flex gap-3'>
         <Shield className='w-5 h-5 text-[#127058] flex-shrink-0 mt-0.5' />
         <div>
-          <p className='text-sm font-bold text-[#127058]'>Your data is safe with us</p>
+          <p className='text-sm font-bold text-[#127058]'>Need to change your contact details?</p>
           <p className='text-xs text-gray-600 mt-0.5 leading-relaxed'>
-            We never share your personal information with third parties. Your contact details
-            are only used to process your device submission and send you an offer.
+            Update them from your profile page, then come back to continue this submission.
           </p>
+          <Link to='/profile' className='inline-block mt-2 text-xs font-semibold text-[#127058] hover:underline'>
+            Go to Profile
+          </Link>
         </div>
       </div>
     </div>
@@ -548,16 +568,28 @@ function Step5({ data, images }: { data: FormData; images: File[] }) {
 }
 
 // ─── Success Screen ───────────────────────────────────────────────────────────
-function SuccessScreen() {
+function SuccessScreen({ evaluation }: { evaluation?: SellDeviceAiEvaluation | null }) {
   return (
     <div className='text-center py-16 px-6'>
       <div className='w-20 h-20 bg-emerald-100 rounded-full flex items-center justify-center mx-auto mb-6'>
         <CheckCircle2 className='w-10 h-10 text-emerald-600' />
       </div>
       <h2 className='text-2xl font-black text-gray-900 mb-3'>Submission Received!</h2>
+      {evaluation && (
+        <div className='max-w-md mx-auto mb-6 p-5 rounded-2xl bg-emerald-50 border border-emerald-200 text-left'>
+          <p className='text-sm font-bold text-emerald-800 mb-2'>AI valuation estimate</p>
+          <p className='text-2xl font-black text-emerald-900'>
+            ${evaluation.tradeInRecommendation.toLocaleString()}
+          </p>
+          <p className='text-xs text-emerald-700 mt-2 leading-relaxed'>{evaluation.reasoning}</p>
+          <p className='text-xs text-gray-500 mt-3'>
+            Final offer subject to finance officer review after device inspection.
+          </p>
+        </div>
+      )}
       <p className='text-gray-500 max-w-sm mx-auto leading-relaxed mb-8'>
-        Thank you for listing your device. Our team will review your submission and send you
-        an AI-assisted valuation offer within <strong className='text-gray-700'>24 hours</strong>.
+        Thank you for listing your device. Our finance team will review your submission and confirm
+        your offer{evaluation ? '' : ' within'} <strong className='text-gray-700'>24 hours</strong>.
       </p>
       <div className='flex flex-col sm:flex-row gap-3 justify-center'>
         <Link
@@ -579,8 +611,14 @@ function SuccessScreen() {
 
 // ─── Main Component ───────────────────────────────────────────────────────────
 export default function SellDevice() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
   const [step, setStep]       = useState(1);
   const [submitted, setSubmit] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitError, setSubmitError] = useState<string | null>(null);
+  const [aiEvaluation, setAiEvaluation] = useState<SellDeviceAiEvaluation | null>(null);
+  const [profileLoading, setProfileLoading] = useState(false);
   const [form, setForm]       = useState<FormData>(INITIAL_FORM);
   const [images, setImages]   = useState<File[]>([]);
 
@@ -592,14 +630,72 @@ export default function SellDevice() {
     if (step === 1) return !!form.category;
     if (step === 2) return !!(form.brand && form.model && form.askingPrice);
     if (step === 3) return !!form.condition;
-    if (step === 4) return !!(form.name && form.phone && form.email && form.location);
+    if (step === 4) return !profileLoading && !!(form.name && form.phone && form.email);
     return true;
   }
 
-  function handleSubmit() {
-    // TODO: wire to your API
-    console.log('Submitting:', form, images);
-    setSubmit(true);
+  useEffect(() => {
+    if (!user) return;
+    setProfileLoading(true);
+    fetchProfile()
+      .then((profile) => {
+        const fullName = `${profile.firstName} ${profile.lastName}`.trim();
+        setForm((prev) => ({
+          ...prev,
+          name: fullName,
+          email: profile.email ?? '',
+          phone: profile.phone ?? '',
+        }));
+      })
+      .catch((err) => {
+        setSubmitError(getErrorMessage(err));
+      })
+      .finally(() => {
+        setProfileLoading(false);
+      });
+  }, [user]);
+
+  async function handleSubmit() {
+    if (!user) {
+      navigate('/login', { state: { from: '/Sell-Your-Device' } });
+      return;
+    }
+
+    setSubmitting(true);
+    setSubmitError(null);
+
+    const defectNotes = [
+      form.defects,
+      form.accessories.length ? `Accessories: ${form.accessories.join(', ')}` : '',
+      form.imei ? `IMEI: ${form.imei}` : '',
+      form.purchaseYear ? `Purchase year: ${form.purchaseYear}` : '',
+    ]
+      .filter(Boolean)
+      .join('\n');
+
+    const payload = new FormData();
+    payload.append('brand', form.brand);
+    payload.append('model', form.model);
+    payload.append('condition', form.condition);
+    payload.append('category', form.category);
+    if (form.batteryHealth) payload.append('batteryHealth', form.batteryHealth);
+    if (form.askingPrice) payload.append('askingPrice', form.askingPrice);
+    if (form.storage) payload.append('storage', form.storage);
+    if (form.ram) payload.append('ram', form.ram);
+    if (form.color) payload.append('color', form.color);
+    if (form.location) payload.append('location', form.location);
+    if (defectNotes) payload.append('defects', defectNotes);
+    images.forEach((file) => payload.append('images', file));
+
+    try {
+      const result = await submitSellDevice(payload);
+      setAiEvaluation(result.aiEvaluation);
+      setSubmit(true);
+    } catch (err) {
+      setSubmitError(getErrorMessage(err));
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -619,7 +715,7 @@ export default function SellDevice() {
 
       <div className='max-w-3xl mx-auto px-6 py-10'>
         {submitted ? (
-          <SuccessScreen />
+          <SuccessScreen evaluation={aiEvaluation} />
         ) : (
           <>
             {/* Step Progress Bar */}
@@ -650,6 +746,12 @@ export default function SellDevice() {
                 ))}
               </div>
             </div>
+
+            {submitError && (
+              <p className='mb-4 text-sm text-red-700 bg-red-50 border border-red-200 rounded-xl px-4 py-3'>
+                {submitError}
+              </p>
+            )}
 
             {/* Form Card */}
             <div className='bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden'>
@@ -690,10 +792,11 @@ export default function SellDevice() {
                 ) : (
                   <button
                     type='button'
-                    onClick={handleSubmit}
-                    className='flex items-center gap-2 px-6 py-2.5 bg-[#127058] hover:bg-[#0e5845] text-white font-bold rounded-xl transition-all shadow-sm text-sm active:scale-[0.97]'
+                    onClick={() => void handleSubmit()}
+                    disabled={submitting}
+                    className='flex items-center gap-2 px-6 py-2.5 bg-[#127058] hover:bg-[#0e5845] disabled:bg-gray-300 disabled:cursor-not-allowed text-white font-bold rounded-xl transition-all shadow-sm text-sm active:scale-[0.97]'
                   >
-                    Submit Device
+                    {submitting ? 'Submitting…' : 'Submit Device'}
                     <CheckCircle2 className='w-4 h-4' />
                   </button>
                 )}
