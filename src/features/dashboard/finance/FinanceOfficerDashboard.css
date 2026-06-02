@@ -271,6 +271,26 @@
 .fo-modal-close:hover { background: #f3f4f6; color: #374151; }
 .fo-modal-body { padding: 20px; }
 .fo-modal-actions { display: flex; gap: 10px; margin-top: 20px; }
+.fo-modal-wide { max-width: 720px; width: min(92vw, 720px); }
+.fo-ai-block { margin-top: 16px; padding: 12px 14px; background: #f8fafc; border-radius: 12px; border: 1px solid #e5e7eb; }
+.fo-ai-block p { margin: 6px 0 0; font-size: 0.875rem; color: #374151; line-height: 1.5; }
+.fo-sell-images { margin-top: 16px; }
+.fo-sell-images-grid { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 8px; }
+.fo-sell-images-grid a { display: block; width: 88px; height: 88px; border-radius: 10px; overflow: hidden; border: 1px solid #e5e7eb; }
+.fo-sell-images-grid img { width: 100%; height: 100%; object-fit: cover; }
+.fo-notes-field { display: flex; flex-direction: column; gap: 6px; margin-top: 16px; }
+.fo-notes-field textarea {
+  width: 100%; padding: 10px 12px; border: 1px solid #e5e7eb; border-radius: 10px;
+  font-size: 0.875rem; resize: vertical; font-family: inherit;
+}
+.fo-notes-field input {
+  width: 100%;
+  padding: 10px 12px;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  font-size: 0.875rem;
+  font-family: inherit;
+}
 .fo-detail-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
 .fo-detail-item { display: flex; flex-direction: column; gap: 3px; }
 .fo-detail-label { font-size: 0.7rem; text-transform: uppercase; letter-spacing: 0.06em; color: #9ca3af; font-weight: 600; }

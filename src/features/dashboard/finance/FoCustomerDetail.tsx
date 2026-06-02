@@ -1,4 +1,3 @@
-import { FO_ACTIVE_LOANS_SEED } from '../../../data/mockData'
 import { StatusBadge, RiskBadge } from './FoBadges'
 import type { FoCustomer } from './foHelpers'
 
@@ -8,7 +7,7 @@ interface Props {
 }
 
 export default function FoCustomerDetail({ customer, onBack }: Props) {
-  const loanHistory = FO_ACTIVE_LOANS_SEED.filter((l) => l.customer === customer.name)
+  const loanHistory = customer.loanHistory ?? []
   const initials = customer.name.split(' ').map((n) => n[0]).join('').slice(0, 2)
 
   return (

@@ -3,6 +3,7 @@ import type { Device as CartDevice } from '../context/type'
 import type { User } from '../features/dashboard/shared/types/dashboard.types'
 import type { Device as InventoryDevice } from '../features/dashboard/shared/types/dashboard.types'
 import type { Loan, LoanStatus } from '../features/dashboard/shared/types/dashboard.types'
+import type { ApiTradeIn } from '../services/devices.service'
 
 const DEVICE_IMAGES: Record<string, string> = {
   iphone: 'https://images.unsplash.com/photo-1730036900477-09391e7a5414?q=80&w=580&auto=format&fit=crop',
@@ -122,6 +123,7 @@ export interface ApiUser {
   lastName: string
   email: string
   phone?: string | null
+  avatarUrl?: string | null
   role: string
   status?: string
   isVerified?: boolean
@@ -171,6 +173,7 @@ export interface ApiDevice {
   id: string
   brand: string
   model: string
+  imageUrls?: string
   condition: string
   status: string
   price: number
@@ -201,10 +204,81 @@ export interface ApiFinancingApp {
   interestRate: number
   installmentMonths: number
   monthlyRepayment: number
+  paymentAbilityScore?: number | null
+  riskSummary?: string | null
   deviceId?: string
   createdAt?: string
-  customer?: { firstName: string; lastName: string }
+  customer?: { firstName: string; lastName: string; email?: string; phone?: string | null }
   device?: { brand: string; model: string }
+}
+
+export interface FoSellRequest {
+  id: string
+  ref: string
+  customer: string
+  email: string
+  phone: string
+  device: string
+  category: string
+  condition: string
+  askingPrice: string
+  aiOffer: string
+  status: string
+  appliedAt: string
+  imageUrls: string[]
+  defects: string
+  aiReasoning: string
+  technicianComment: string
+  technicianRepairEstimate: string
+  technicianName: string
+  technicianReviewedAt: string
+  officerNotes: string
+  finalOffer: string
+}
+
+export function mapTradeInToFoSellRequest(row: ApiTradeIn): FoSellRequest {
+  const statusMap: Record<string, string> = {
+    PENDING: 'Pending',
+    APPROVED: 'Approved',
+    REJECTED: 'Rejected',
+    COMPLETED: 'Completed',
+  }
+
+  let images: string[] = []
+  try {
+    images = JSON.parse(row.imageUrls || '[]') as string[]
+  } catch {
+    images = []
+  }
+
+  return {
+    id: row.id,
+    ref: row.id.slice(0, 8).toUpperCase(),
+    customer: row.user ? `${row.user.firstName} ${row.user.lastName}` : 'Customer',
+    email: row.user?.email ?? '—',
+    phone: row.user?.phone ?? '—',
+    device: `${row.brand} ${row.model}`,
+    category: row.category ?? '—',
+    condition: row.condition,
+    askingPrice: row.askingPrice != null ? `$${row.askingPrice.toLocaleString()}` : '—',
+    aiOffer: `$${row.estimatedValue.toLocaleString()}`,
+    status: statusMap[row.status] ?? row.status,
+    appliedAt: row.createdAt
+      ? new Date(row.createdAt).toISOString().slice(0, 10)
+      : new Date().toISOString().slice(0, 10),
+    imageUrls: images,
+    defects: row.defects ?? '',
+    aiReasoning: row.aiReasoning ?? '',
+    technicianComment: row.technicianComment ?? '',
+    technicianRepairEstimate:
+      row.technicianRepairEstimate != null ? `$${row.technicianRepairEstimate.toLocaleString()}` : '',
+    technicianName: row.technician ? `${row.technician.firstName} ${row.technician.lastName}` : '',
+    technicianReviewedAt: row.technicianReviewedAt
+      ? new Date(row.technicianReviewedAt).toISOString().slice(0, 10)
+      : '',
+    officerNotes: row.officerNotes ?? '',
+    finalOffer: row.finalOfferAmount != null ? `$${row.finalOfferAmount.toLocaleString()}` : '',
+  }
 }
 
 export function mapFinancingToFoRequest(app: ApiFinancingApp) {

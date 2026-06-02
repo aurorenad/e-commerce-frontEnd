@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react'
-import { OVERVIEW_PIE_DATA, OVERVIEW_REVENUE_TREND, OVERVIEW_STATS, OVERVIEW_ORDERS_TREND } from '../../../../../data/mockData'
-import { fetchDashboardStats } from '../../../../../services/admin.service'
+import { fetchDashboardStats, fetchSystemLogs, type ApiSystemLog } from '../../../../../services/admin.service'
 import DonutChart from '../../../shared/components/DonutChart'
 import RevenueBarChart from './RevenueBarChart'
 import OrdersLineChart from './OrdersLineChart'
@@ -9,8 +8,11 @@ import type { StatIconType } from './StatIcon'
 import './OverviewSection.css'
 
 export default function OverviewSection() {
-  const [stats, setStats] = useState(OVERVIEW_STATS)
-  const [pieData, setPieData] = useState(OVERVIEW_PIE_DATA)
+  const [stats, setStats] = useState<Array<{ label: string; value: string; change: string; trend: 'up' | 'down'; icon: string }>>([])
+  const [pieData, setPieData] = useState<Array<{ label: string; value: number; color: string }>>([])
+  const [revenueTrend, setRevenueTrend] = useState<Array<{ month: string; revenue: number }>>([])
+  const [ordersTrend, setOrdersTrend] = useState<Array<{ month: string; orders: number }>>([])
+  const [systemLogs, setSystemLogs] = useState<ApiSystemLog[]>([])
 
   useEffect(() => {
     fetchDashboardStats()
@@ -27,12 +29,17 @@ export default function OverviewSection() {
           { label: 'Intake', value: data.inventory.intakeCount, color: '#3b82f6' },
           { label: 'Sold', value: data.inventory.soldCount, color: '#94a3b8' },
         ])
+        setRevenueTrend([{ month: 'Now', revenue: data.sales.totalRevenue }])
+        setOrdersTrend([{ month: 'Now', orders: data.sales.totalOrdersPaid }])
       })
+      .catch(() => {})
+    fetchSystemLogs(30)
+      .then(setSystemLogs)
       .catch(() => {})
   }, [])
 
   const total = pieData.reduce((s, d) => s + d.value, 0)
-  const currentOrders = OVERVIEW_ORDERS_TREND[OVERVIEW_ORDERS_TREND.length - 1].orders
+  const currentOrders = ordersTrend.length ? ordersTrend[ordersTrend.length - 1].orders : 0
 
   return (
     <div className="overview-stack">
@@ -75,19 +82,43 @@ export default function OverviewSection() {
 
         <div className="ov-chart-card">
           <h3 className="ov-chart-title">Monthly Revenue</h3>
-          <RevenueBarChart data={OVERVIEW_REVENUE_TREND} />
+          <RevenueBarChart data={revenueTrend} />
           <p className="ov-chart-hint">
-            Current month: <strong>$124,592</strong>
+            Current total: <strong>${revenueTrend.length ? revenueTrend[revenueTrend.length - 1].revenue.toLocaleString() : '0'}</strong>
           </p>
         </div>
 
         <div className="ov-chart-card">
           <h3 className="ov-chart-title">Orders Trend</h3>
-          <OrdersLineChart data={OVERVIEW_ORDERS_TREND} />
+          <OrdersLineChart data={ordersTrend} />
           <p className="ov-chart-hint">
             Current month: <strong>{currentOrders} orders</strong>
           </p>
         </div>
+      </div>
+
+      <div className="ov-chart-card">
+        <h3 className="ov-chart-title">System Logs</h3>
+        {systemLogs.length === 0 ? (
+          <p className="ov-chart-hint">No logs available.</p>
+        ) : (
+          <div className="ov-logs-list">
+            {systemLogs.map((log) => (
+              <div key={log.id} className="ov-log-item">
+                <div className="ov-log-row">
+                  <strong>{log.action}</strong>
+                  <span>{new Date(log.createdAt).toLocaleString()}</span>
+                </div>
+                <p>{log.details}</p>
+                {log.user?.email && (
+                  <small>
+                    {`${log.user.firstName} ${log.user.lastName}`.trim()} ({log.user.email})
+                  </small>
+                )}
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   )

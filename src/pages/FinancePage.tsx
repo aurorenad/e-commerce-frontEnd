@@ -3,14 +3,13 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../context/AuthContext'
 import FinanceOfficerDashboard from '../features/dashboard/finance/FinanceOfficerDashboard'
 import type { DashboardNotification } from '../features/dashboard/shared/types/dashboard.types'
-import { NOTIFICATIONS_SEED } from '../data/mockData'
 
 export default function FinancePage() {
   const { logout } = useAuth()
   const navigate   = useNavigate()
 
   const [darkMode, setDarkMode]           = useState(false)
-  const [notifications, setNotifications] = useState<DashboardNotification[]>(NOTIFICATIONS_SEED)
+  const [notifications, setNotifications] = useState<DashboardNotification[]>([])
 
   function handleBack() {
     logout()

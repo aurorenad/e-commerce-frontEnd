@@ -29,6 +29,7 @@ export function IconEdit() {
 export function NavIcon({ id }: { id: string }) {
   if (id === 'overview') return <IconHome />
   if (id === 'devices')  return <IconList />
+  if (id === 'sell-requests') return <IconDetail />
   if (id === 'details')  return <IconDetail />
   return <IconUser />
 }

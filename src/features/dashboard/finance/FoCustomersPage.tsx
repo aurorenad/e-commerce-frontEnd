@@ -1,21 +1,71 @@
-import { useMemo, useState } from 'react'
-import { FO_CUSTOMERS_SEED } from '../../../data/mockData'
+import { useEffect, useMemo, useState } from 'react'
+import { fetchFinancingApplications } from '../../../services/payments.service'
 import { StatusBadge, RiskBadge } from './FoBadges'
 import FoCustomerDetail from './FoCustomerDetail'
-import type { FoCustomer } from './foHelpers'
+import type { FoCustomer, FoLoan } from './foHelpers'
+import type { ApiFinancingWithRepayments } from '../../../lib/mappers'
+import { getLoanHealthStatus, getRiskLevel } from './foData'
 
 export default function FoCustomersPage() {
   const [search, setSearch]           = useState('')
   const [statusFilter, setStatusFilter] = useState('all')
   const [selected, setSelected]       = useState<FoCustomer | null>(null)
+  const [apps, setApps] = useState<ApiFinancingWithRepayments[]>([])
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchFinancingApplications()
+      .then((rows) => { setApps(rows); setLoadError(null) })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load customers'))
+  }, [])
+
+  const customers = useMemo(() => {
+    const grouped = new Map<string, FoCustomer>()
+    apps.forEach((app) => {
+      const cid = app.id + (app.customer?.email ?? '')
+      const key = app.customer?.email || cid
+      const fullName = app.customer ? `${app.customer.firstName} ${app.customer.lastName}` : 'Customer'
+      const current = grouped.get(key)
+      const loanRow: FoLoan = {
+        ref: app.id.slice(0, 8).toUpperCase(),
+        customer: fullName,
+        device: app.device ? `${app.device.brand} ${app.device.model}` : 'Device',
+        monthly: `$${app.monthlyRepayment.toLocaleString()}`,
+        remaining: `$${((app.repayments ?? []).filter((r) => r.status !== 'PAID').reduce((s, r) => s + r.amountDue, 0)).toFixed(2)}`,
+        nextDue: (app.repayments ?? []).find((r) => r.status !== 'PAID')?.dueDate?.slice(0, 10) ?? '—',
+        status: getLoanHealthStatus(app),
+      }
+      if (!current) {
+        grouped.set(key, {
+          id: `CUS-${app.id.slice(0, 4).toUpperCase()}`,
+          name: fullName,
+          email: app.customer?.email ?? '—',
+          phone: app.customer?.phone ?? '—',
+          loans: 1,
+          totalBorrowed: `$${app.totalAmount.toLocaleString()}`,
+          riskLevel: getRiskLevel(app),
+          status: getLoanHealthStatus(app) === 'Overdue' ? 'Delinquent' : 'Active',
+          loanHistory: [loanRow],
+        })
+        return
+      }
+      current.loans += 1
+      const total = Number(current.totalBorrowed.replace(/[$,]/g, '')) + app.totalAmount
+      current.totalBorrowed = `$${total.toLocaleString()}`
+      current.riskLevel = current.riskLevel === 'Critical' ? 'Critical' : getRiskLevel(app)
+      current.loanHistory = [...(current.loanHistory ?? []), loanRow]
+      if (getLoanHealthStatus(app) === 'Overdue') current.status = 'Delinquent'
+    })
+    return Array.from(grouped.values())
+  }, [apps])
 
   const filtered = useMemo(() => {
-    let list = FO_CUSTOMERS_SEED
+    let list = customers
     const q = search.trim().toLowerCase()
     if (q) list = list.filter((c) => c.name.toLowerCase().includes(q) || c.email.toLowerCase().includes(q) || c.id.toLowerCase().includes(q))
     if (statusFilter !== 'all') list = list.filter((c) => c.status.toLowerCase() === statusFilter)
     return list
-  }, [search, statusFilter])
+  }, [customers, search, statusFilter])
 
   const exportCustomers = () => {
     const headers = ['ID', 'Name', 'Email', 'Phone', 'Total Borrowed', 'Risk', 'Status']
@@ -36,6 +86,7 @@ export default function FoCustomersPage() {
 
   return (
     <div className="fo-page-wrap">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{loadError}</p>}
       <div className="fo-toolbar">
         <div className="fo-search-box">
           <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="11" cy="11" r="7" /><path d="M20 20l-3-3" /></svg>

@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, type ReactNode } from 'react'
+import { createContext, useContext, useState, useEffect, useCallback, type ReactNode } from 'react'
 import * as authService from '../services/auth.service'
 import { fetchProfile } from '../services/users.service'
 import { getErrorMessage } from '../lib/api'
@@ -19,7 +19,25 @@ interface AuthContextValue {
   token: string | null
   login: (email: string, password: string) => Promise<AuthUser>
   logout: () => void
+  refreshUser: () => Promise<void>
   isAuthenticated: boolean
+}
+
+function profileToAuthUser(profile: {
+  id: string
+  firstName: string
+  lastName: string
+  email: string
+  role: string
+}): AuthUser {
+  const role = toFrontendRole(profile.role)
+  return {
+    id: profile.id,
+    name: `${profile.firstName} ${profile.lastName}`.trim(),
+    email: profile.email,
+    role,
+    redirectTo: getRedirectForRole(role),
+  }
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -67,27 +85,24 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(null)
   }
 
+  const refreshUser = useCallback(async () => {
+    if (!token) return
+    const profile = await fetchProfile()
+    const authUser = profileToAuthUser(profile)
+    setUser(authUser)
+    sessionStorage.setItem('auth_user', JSON.stringify(authUser))
+  }, [token])
+
   useEffect(() => {
     if (!token) return
 
-    fetchProfile()
-      .then((profile) => {
-        const role = toFrontendRole(profile.role)
-        const authUser: AuthUser = {
-          id: profile.id,
-          name: `${profile.firstName} ${profile.lastName}`.trim(),
-          email: profile.email,
-          role,
-          redirectTo: getRedirectForRole(role),
-        }
-        setUser(authUser)
-        sessionStorage.setItem('auth_user', JSON.stringify(authUser))
-      })
-      .catch(() => {
-        // Token invalid
-        logout()
-      })
-  }, [token])
+    refreshUser().catch(() => {
+      sessionStorage.removeItem('auth_token')
+      sessionStorage.removeItem('auth_user')
+      setToken(null)
+      setUser(null)
+    })
+  }, [token, refreshUser])
 
   return (
     <AuthContext.Provider
@@ -96,6 +111,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         token,
         login,
         logout,
+        refreshUser,
         isAuthenticated: Boolean(user && token),
       }}
     >

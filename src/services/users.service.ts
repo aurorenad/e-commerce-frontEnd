@@ -43,6 +43,13 @@ export async function updateProfile(payload: {
   lastName?: string
   phone?: string
 }) {
-  const { data } = await api.put<{ user: ApiUser }>('/users/profile', payload)
+  const { data } = await api.put<{ message: string; user: ApiUser }>('/users/profile', payload)
+  return data.user
+}
+
+export async function updateProfileAvatar(formData: FormData) {
+  const { data } = await api.put<{ message: string; user: ApiUser }>('/users/profile/avatar', formData, {
+    headers: { 'Content-Type': 'multipart/form-data' },
+  })
   return data.user
 }

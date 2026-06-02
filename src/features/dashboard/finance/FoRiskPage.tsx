@@ -1,11 +1,44 @@
-import { useState } from 'react'
-import { FO_DELINQUENT_SEED } from '../../../data/mockData'
+import { useEffect, useState } from 'react'
+import { fetchFinancingApplications } from '../../../services/payments.service'
 import { RiskBadge } from './FoBadges'
 import type { FoDelinquent } from './foHelpers'
+import type { ApiFinancingWithRepayments } from '../../../lib/mappers'
+import { getRiskLevel } from './foData'
 
 export default function FoRiskPage() {
-  const [list, setList]   = useState<FoDelinquent[]>(FO_DELINQUENT_SEED)
+  const [apps, setApps] = useState<ApiFinancingWithRepayments[]>([])
+  const [list, setList]   = useState<FoDelinquent[]>([])
   const [toast, setToast] = useState<string | null>(null)
+  const [loadError, setLoadError] = useState<string | null>(null)
+
+  useEffect(() => {
+    fetchFinancingApplications({ status: 'APPROVED' })
+      .then((rows) => { setApps(rows); setLoadError(null) })
+      .catch((err) => setLoadError(err instanceof Error ? err.message : 'Failed to load delinquency data'))
+  }, [])
+
+  useEffect(() => {
+    const next = apps
+      .map((app): FoDelinquent | null => {
+        const overdue = (app.repayments ?? []).filter((r) => r.status !== 'PAID' && new Date(r.dueDate).getTime() < Date.now())
+        if (overdue.length === 0) return null
+        const maxDays = Math.max(...overdue.map((r) => Math.max(1, Math.floor((Date.now() - new Date(r.dueDate).getTime()) / (1000 * 60 * 60 * 24)))))
+        const amountDue = overdue.reduce((sum, r) => sum + r.amountDue, 0)
+        const unpaid = (app.repayments ?? []).filter((r) => r.status !== 'PAID').reduce((sum, r) => sum + r.amountDue, 0)
+        return {
+          ref: app.id.slice(0, 8).toUpperCase(),
+          customer: app.customer ? `${app.customer.firstName} ${app.customer.lastName}` : 'Customer',
+          device: app.device ? `${app.device.brand} ${app.device.model}` : 'Device',
+          overdueDays: maxDays,
+          amountDue: `$${amountDue.toFixed(2)}`,
+          totalOwed: `$${unpaid.toFixed(2)}`,
+          riskLevel: getRiskLevel(app),
+          phone: app.customer?.phone || '—',
+        }
+      })
+      .filter((item): item is FoDelinquent => item !== null)
+    setList(next)
+  }, [apps])
 
   const showToast = (msg: string) => { setToast(msg); setTimeout(() => setToast(null), 2500) }
   const markPaid     = (ref: string) => { setList((prev) => prev.filter((r) => r.ref !== ref)); showToast('Marked as paid and removed from delinquency list.') }
@@ -14,6 +47,7 @@ export default function FoRiskPage() {
 
   return (
     <div className="fo-page-wrap">
+      {loadError && <p className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-xl px-4 py-3 mb-4">{loadError}</p>}
       <div className="fo-risk-summary-row">
         {[
           { label: 'Critical',     cls: 'fo-risk-card-red',    val: list.filter((r) => r.riskLevel === 'Critical').length },

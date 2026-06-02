@@ -7,6 +7,7 @@ export type TStatus = (typeof STATUS_OPTIONS)[number]
 export const TW_NAV = [
   { id: 'overview', label: 'Overview' },
   { id: 'devices',  label: 'Assigned Devices' },
+  { id: 'sell-requests', label: 'Sell Requests' },
   { id: 'profile',  label: 'Profile' },
 ] as const
 
