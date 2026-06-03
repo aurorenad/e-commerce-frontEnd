@@ -35,8 +35,8 @@ export default function HeroSection() {
       <Navbar />
 
       <main className='max-w-7xl mx-auto px-6 py-8'>
-        {/* Parent Card Container with Relative Positioning */}
-        <div className='relative overflow-hidden p-8 md:p-16 text-white rounded-3xl min-h-[480px] flex items-center shadow-xl'>
+        {/* Hero card — narrower than full page width */}
+        <div className='relative overflow-hidden p-8 md:p-12 text-white rounded-3xl min-h-[420px] flex items-center shadow-xl max-w-4xl'>
           {/* Background Image Layer */}
           <div className='absolute inset-0 z-0'>
             <img
@@ -53,19 +53,19 @@ export default function HeroSection() {
           <div className='absolute inset-0 z-10 bg-gradient-to-r from-black/50 via-transparent to-transparent'></div>
 
           {/* Foreground Content Layer */}
-          <div className='relative z-20 flex flex-col items-start space-y-5 max-w-2xl'>
+          <div className='relative z-20 flex flex-col items-start space-y-4 max-w-md md:max-w-lg'>
             <span className='inline-block bg-[#EF9F27] text-gray-950 text-xs font-black uppercase tracking-wider px-3 py-1.5 rounded-full shadow-md'>
               Quality Devices. Flexible Payments.
             </span>
 
-            <h1 className='text-4xl md:text-6xl font-black text-white tracking-tight leading-tight mt-2'>
+            <h1 className='text-3xl md:text-5xl font-black text-white tracking-tight leading-tight mt-2'>
               Affordable tech,{' '}
               <span className='text-[#EF9F27]'>fairly priced.</span>
               <br />
               No compromise.
             </h1>
 
-            <p className='text-[#D5E4E1] text-base md:text-lg leading-relaxed max-w-lg drop-shadow-sm'>
+            <p className='text-[#D5E4E1] text-sm md:text-base leading-relaxed max-w-sm drop-shadow-sm'>
               ReviveTech is a platform for buying and selling professionally
               refurbished electronics with transparent condition grading,
               AI-powered pricing, and flexible monthly payment plans — making

@@ -6,23 +6,40 @@ function apiRoot(): string {
   return 'http://localhost:5001'
 }
 
+async function checkHealth(): Promise<boolean> {
+  const res = await fetch(`${apiRoot()}/health`, { method: 'GET' })
+  return res.ok
+}
+
+async function checkWithRetries(): Promise<boolean> {
+  const delays = [0, 8000, 20000]
+  for (const delay of delays) {
+    if (delay > 0) await new Promise((r) => setTimeout(r, delay))
+    try {
+      if (await checkHealth()) return true
+    } catch {
+      /* retry — Render cold start or CORS */
+    }
+  }
+  return false
+}
+
 export default function ApiStatusBanner() {
   const [offline, setOffline] = useState(false)
 
   useEffect(() => {
     let cancelled = false
 
-    async function check() {
-      try {
-        const res = await fetch(`${apiRoot()}/health`)
-        if (!cancelled) setOffline(!res.ok)
-      } catch {
-        if (!cancelled) setOffline(true)
-      }
-    }
+    void checkWithRetries().then((ok) => {
+      if (!cancelled) setOffline(!ok)
+    })
 
-    void check()
-    const id = setInterval(() => void check(), 30000)
+    const id = setInterval(() => {
+      void checkHealth()
+        .then((ok) => { if (!cancelled) setOffline(!ok) })
+        .catch(() => { if (!cancelled) setOffline(true) })
+    }, 60000)
+
     return () => {
       cancelled = true
       clearInterval(id)
@@ -36,9 +53,18 @@ export default function ApiStatusBanner() {
   return (
     <div className="bg-amber-500 text-amber-950 text-center text-sm font-semibold py-2 px-4 z-[100]">
       {isProd ? (
-        <>Cannot reach the API at <code className="font-mono bg-amber-600/20 px-1 rounded">{apiRoot()}</code> — check Render is running and <code className="font-mono bg-amber-600/20 px-1 rounded">VITE_API_BASE_URL</code> on Vercel.</>
+        <>
+          API unreachable at{' '}
+          <code className="font-mono bg-amber-600/20 px-1 rounded">{apiRoot()}</code>
+          . Render may be waking up (wait ~1 min), or update{' '}
+          <code className="font-mono bg-amber-600/20 px-1 rounded">FRONTEND_URL</code> on Render to your Vercel URL.
+        </>
       ) : (
-        <>Cannot reach the API — run <code className="font-mono bg-amber-600/20 px-1 rounded">npm run dev</code> in the <code className="font-mono bg-amber-600/20 px-1 rounded">backend</code> folder.</>
+        <>
+          Cannot reach the API — run{' '}
+          <code className="font-mono bg-amber-600/20 px-1 rounded">npm run dev</code> in the{' '}
+          <code className="font-mono bg-amber-600/20 px-1 rounded">backend</code> folder.
+        </>
       )}
     </div>
   )
