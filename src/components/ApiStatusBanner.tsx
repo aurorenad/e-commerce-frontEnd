@@ -31,10 +31,15 @@ export default function ApiStatusBanner() {
 
   if (!offline) return null
 
+  const isProd = Boolean(import.meta.env.VITE_API_BASE_URL)
+
   return (
     <div className="bg-amber-500 text-amber-950 text-center text-sm font-semibold py-2 px-4 z-[100]">
-      Cannot reach the API — run <code className="font-mono bg-amber-600/20 px-1 rounded">npm run dev</code> in the{' '}
-      <code className="font-mono bg-amber-600/20 px-1 rounded">backend</code> folder
+      {isProd ? (
+        <>Cannot reach the API at <code className="font-mono bg-amber-600/20 px-1 rounded">{apiRoot()}</code> — check Render is running and <code className="font-mono bg-amber-600/20 px-1 rounded">VITE_API_BASE_URL</code> on Vercel.</>
+      ) : (
+        <>Cannot reach the API — run <code className="font-mono bg-amber-600/20 px-1 rounded">npm run dev</code> in the <code className="font-mono bg-amber-600/20 px-1 rounded">backend</code> folder.</>
+      )}
     </div>
   )
 }

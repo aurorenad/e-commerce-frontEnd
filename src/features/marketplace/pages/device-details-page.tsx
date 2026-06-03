@@ -55,26 +55,96 @@ export default function DeviceDetailsPage() {
     return () => { cancelled = true; };
   }, [id]);
 
+  const returnTo = `/marketplace/${listing.id}`;
+
   const handleAddToCart = async () => {
     if (!listing) return;
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: returnTo } });
+      return;
+    }
     await addToCart(mapListingToCartDevice(listing));
     setIsCartOpen(true);
   };
 
   const handleBuyNow = async () => {
     if (!listing) return;
+    if (!isAuthenticated) {
+      navigate('/login', { state: { from: '/checkout' } });
+      return;
+    }
     setBuying(true);
     try {
       await addToCart(mapListingToCartDevice(listing));
-      if (!isAuthenticated) {
-        navigate('/login', { state: { from: '/checkout' } });
-        return;
-      }
       navigate('/checkout');
     } finally {
       setBuying(false);
     }
   };
+
+  const purchaseActions = isAuthenticated ? (
+    <div className="flex flex-col sm:flex-row gap-3">
+      <button
+        type="button"
+        onClick={() => void handleAddToCart()}
+        disabled={buying}
+        className="flex-1 bg-white border-2 border-[#127058] text-[#127058] hover:bg-[#127058]/5 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-60"
+      >
+        <ShoppingCart size={20} />
+        Add to Cart
+      </button>
+      <button
+        type="button"
+        onClick={() => void handleBuyNow()}
+        disabled={buying}
+        className="flex-1 bg-[#127058] hover:bg-[#0e5845] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-60"
+      >
+        <Zap size={20} />
+        {buying ? 'Processing…' : 'Buy Now'}
+      </button>
+    </div>
+  ) : (
+    <Link
+      to="/login"
+      state={{ from: returnTo }}
+      className="w-full bg-[#127058] hover:bg-[#0e5845] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md"
+    >
+      <Lock size={20} />
+      Sign in to purchase
+    </Link>
+  );
+
+  const mobilePurchaseActions = isAuthenticated ? (
+    <div className="flex gap-2">
+      <button
+        type="button"
+        onClick={() => void handleAddToCart()}
+        disabled={buying}
+        className="flex-1 border-2 border-[#127058] text-[#127058] font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 text-sm disabled:opacity-60"
+      >
+        <ShoppingCart size={18} />
+        Cart
+      </button>
+      <button
+        type="button"
+        onClick={() => void handleBuyNow()}
+        disabled={buying}
+        className="flex-[1.4] bg-[#127058] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 text-sm disabled:opacity-60"
+      >
+        <Zap size={18} />
+        {buying ? '…' : 'Buy Now'}
+      </button>
+    </div>
+  ) : (
+    <Link
+      to="/login"
+      state={{ from: returnTo }}
+      className="w-full bg-[#127058] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 text-sm"
+    >
+      <Lock size={18} />
+      Sign in to purchase
+    </Link>
+  );
 
   if (loading) {
     return (
@@ -108,29 +178,6 @@ export default function DeviceDetailsPage() {
 
   const monthlyInstallment = (listing.current_price / financingMonths).toFixed(0);
   const totalSavings = listing.original_price - listing.current_price;
-
-  const purchaseActions = (
-    <div className="flex flex-col sm:flex-row gap-3">
-      <button
-        type="button"
-        onClick={() => void handleAddToCart()}
-        disabled={buying}
-        className="flex-1 bg-white border-2 border-[#127058] text-[#127058] hover:bg-[#127058]/5 font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all disabled:opacity-60"
-      >
-        <ShoppingCart size={20} />
-        Add to Cart
-      </button>
-      <button
-        type="button"
-        onClick={() => void handleBuyNow()}
-        disabled={buying}
-        className="flex-1 bg-[#127058] hover:bg-[#0e5845] text-white font-bold py-4 rounded-2xl flex items-center justify-center gap-2 transition-all shadow-md disabled:opacity-60"
-      >
-        <Zap size={20} />
-        {buying ? 'Processing…' : 'Buy Now'}
-      </button>
-    </div>
-  );
 
   return (
     <>
@@ -197,13 +244,10 @@ export default function DeviceDetailsPage() {
                   Add this device to your cart or go straight to checkout. Pay in full or spread over{' '}
                   <strong>{financingMonths} months</strong> (~${monthlyInstallment}/mo).
                 </p>
-                {purchaseActions}
+                <div className="hidden lg:block">{purchaseActions}</div>
                 {!isAuthenticated && (
-                  <p className="text-xs text-gray-500 text-center">
-                    <Link to="/login" state={{ from: `/marketplace/${listing.id}` }} className="text-[#127058] font-semibold hover:underline">
-                      Sign in
-                    </Link>{' '}
-                    to save your cart and complete your order faster.
+                  <p className="text-xs text-gray-500 text-center lg:text-left">
+                    You need an account to add items to cart or complete checkout.
                   </p>
                 )}
               </div>
@@ -241,8 +285,6 @@ export default function DeviceDetailsPage() {
                 </p>
               </div>
 
-              <div className="hidden lg:block">{purchaseActions}</div>
-
               <div className="grid grid-cols-3 gap-3 text-center text-xs text-gray-500">
                 <div className="flex flex-col items-center gap-1 p-3 bg-white rounded-xl border border-gray-100">
                   <Shield size={16} className="text-[#127058]" />
@@ -271,26 +313,7 @@ export default function DeviceDetailsPage() {
           </div>
           <p className="text-xs text-emerald-700 font-semibold">from ${monthlyInstallment}/mo</p>
         </div>
-        <div className="flex gap-2">
-          <button
-            type="button"
-            onClick={() => void handleAddToCart()}
-            disabled={buying}
-            className="flex-1 border-2 border-[#127058] text-[#127058] font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 text-sm disabled:opacity-60"
-          >
-            <ShoppingCart size={18} />
-            Cart
-          </button>
-          <button
-            type="button"
-            onClick={() => void handleBuyNow()}
-            disabled={buying}
-            className="flex-[1.4] bg-[#127058] text-white font-bold py-3 rounded-xl flex items-center justify-center gap-1.5 text-sm disabled:opacity-60"
-          >
-            <Zap size={18} />
-            {buying ? '…' : 'Buy Now'}
-          </button>
-        </div>
+        {mobilePurchaseActions}
       </div>
 
       <Footer />
