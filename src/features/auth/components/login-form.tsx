@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { Link, useNavigate } from 'react-router-dom'
 import { Mail, Lock, Eye, EyeOff, ArrowRight } from 'lucide-react'
 import { useAuth } from '../../../context/AuthContext'
 
@@ -65,9 +65,9 @@ export default function LoginForm() {
             <div className="space-y-1.5">
               <div className="flex items-center justify-between">
                 <label className="text-sm font-semibold text-gray-700">Password</label>
-                <a href="/forget-password" className="text-xs font-semibold text-[#127058] hover:text-[#0e5845] transition-colors">
+                <Link to="/forget-password" className="text-xs font-semibold text-[#127058] hover:text-[#0e5845] transition-colors">
                   Forgot Password?
-                </a>
+                </Link>
               </div>
               <div className="relative flex items-center">
                 <span className="absolute left-3.5 text-gray-400"><Lock size={18} /></span>
@@ -115,9 +115,9 @@ export default function LoginForm() {
 
           <p className="text-center text-sm text-gray-600 pt-2">
             Don't have an account?{' '}
-            <a href="/register" className="font-bold text-[#ef9f27] hover:text-[#d68a1d] transition-colors">
+            <Link to="/register" className="font-bold text-[#ef9f27] hover:text-[#d68a1d] transition-colors">
               Register now
-            </a>
+            </Link>
           </p>
         </div>
       </div>
