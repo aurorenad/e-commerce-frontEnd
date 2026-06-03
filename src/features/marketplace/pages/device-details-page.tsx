@@ -55,7 +55,7 @@ export default function DeviceDetailsPage() {
     return () => { cancelled = true; };
   }, [id]);
 
-  const returnTo = `/marketplace/${listing.id}`;
+  const returnTo = id ? `/marketplace/${id}` : '/marketplace';
 
   const handleAddToCart = async () => {
     if (!listing) return;
